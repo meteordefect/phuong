@@ -7,6 +7,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+SSH_KEY="${SSH_KEY:-$HOME/.ssh/friendlabs-deploy}"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -150,7 +152,7 @@ cmd_init() {
     log_info "Step 3: Wait for SSH to become available..."
     SERVER_IP=$(grep ansible_host ansible/inventory.ini | cut -d'=' -f2)
     for i in $(seq 1 24); do
-        if ssh -i ~/.ssh/friendlabs-deploy -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@$SERVER_IP exit 2>/dev/null; then
+        if ssh -i "$SSH_KEY" -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@$SERVER_IP exit 2>/dev/null; then
             log_success "SSH ready"
             break
         fi
@@ -206,8 +208,28 @@ cmd_nginx() {
 }
 
 cmd_deploy_v2() {
-    check_env
-    load_env
+    if [ -f ../.env ]; then
+        export $(grep -v '^#' ../.env | grep -v '^$' | xargs)
+    fi
+    if [ -f .env ]; then
+        export $(grep -v '^#' .env | grep -v '^$' | xargs)
+    fi
+
+    if [ -z "$KIMI_API_KEY" ] && [ -z "$ZAI_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+        log_error "No LLM API key found. Set at least one of KIMI_API_KEY, ZAI_API_KEY, or ANTHROPIC_API_KEY."
+        log_info "Copy .env.example to .env and fill in your keys:"
+        log_info "  cp ../.env.example ../.env"
+        exit 1
+    fi
+
+    if [ ! -f ansible/inventory.ini ]; then
+        log_error "Ansible inventory not found at ansible/inventory.ini"
+        log_info "Create it from the example:"
+        log_info "  cp ansible/inventory.ini.example ansible/inventory.ini"
+        log_info "  # Then edit ansible/inventory.ini and set your server IP"
+        exit 1
+    fi
+
     log_info "Deploying Phoung v2..."
     cd ansible
     ansible-playbook playbooks/deploy-v2.yml
@@ -227,7 +249,7 @@ cmd_tunnel() {
     log_success "Dashboard: http://localhost:8080"
     log_info "Press Ctrl+C to close tunnel"
     echo ""
-    ssh -i ~/.ssh/friendlabs-deploy -N -L 8080:127.0.0.1:8080 root@$SERVER_IP
+    ssh -i "$SSH_KEY" -N -L 8080:127.0.0.1:8080 root@$SERVER_IP
 }
 
 cmd_ssh() {
@@ -238,7 +260,7 @@ cmd_ssh() {
     
     SERVER_IP=$(grep ansible_host ansible/inventory.ini | cut -d'=' -f2)
     log_info "Connecting to $SERVER_IP..."
-    ssh -i ~/.ssh/friendlabs-deploy root@$SERVER_IP
+    ssh -i "$SSH_KEY" root@$SERVER_IP
 }
 
 cmd_logs() {
@@ -249,7 +271,7 @@ cmd_logs() {
     
     SERVER_IP=$(grep ansible_host ansible/inventory.ini | cut -d'=' -f2)
     log_info "Fetching logs from $SERVER_IP..."
-    ssh -i ~/.ssh/friendlabs-deploy root@$SERVER_IP "cd /opt/phoung && docker compose logs -f --tail=100"
+    ssh -i "$SSH_KEY" root@$SERVER_IP "cd /opt/phoung && docker compose logs -f --tail=100"
 }
 
 cmd_build_openclaw() {
@@ -334,7 +356,7 @@ cmd_agent_bridge_remote_logs() {
     
     SERVER_IP=$(grep ansible_host ansible/inventory.ini | cut -d'=' -f2)
     log_info "Fetching agent bridge logs from $SERVER_IP..."
-    ssh -i ~/.ssh/friendlabs-deploy root@$SERVER_IP "cd /opt/phoung && docker compose logs -f agent-bridge"
+    ssh -i "$SSH_KEY" root@$SERVER_IP "cd /opt/phoung && docker compose logs -f agent-bridge"
 }
 
 cmd_agent_bridge_remote_status() {
@@ -345,7 +367,7 @@ cmd_agent_bridge_remote_status() {
     
     SERVER_IP=$(grep ansible_host ansible/inventory.ini | cut -d'=' -f2)
     log_info "Checking agent bridge status on $SERVER_IP..."
-    ssh -i ~/.ssh/friendlabs-deploy root@$SERVER_IP "cd /opt/phoung && docker compose ps agent-bridge"
+    ssh -i "$SSH_KEY" root@$SERVER_IP "cd /opt/phoung && docker compose ps agent-bridge"
 }
 
 cmd_list_agents() {
@@ -452,7 +474,10 @@ ${BLUE}Terraform Commands:${NC}
   terraform-apply   Apply infrastructure changes
   terraform-destroy Destroy all infrastructure
 
-${BLUE}Ansible Commands:${NC}
+${BLUE}Phoung v2 (Recommended):${NC}
+  deploy-v2         Deploy the v2 stack (api + review-ui + nginx + subagent)
+
+${BLUE}Ansible Commands (v3/v4):${NC}
   deploy            Deploy/update all services via Ansible
   config            Update configuration only
   api               Restart Control API
@@ -501,14 +526,18 @@ ${BLUE}SSL/HTTPS Commands:${NC}
 ${BLUE}Destructive Commands:${NC}
   destroy           Tear down everything (DESTRUCTIVE)
 
-${BLUE}Fresh Server Setup (run in order):${NC}
-  ${GREEN}# 1. Configure environment${NC}
-  cp .env.example .env && vi .env
+${BLUE}Fresh Server Setup — v2 (run in order):${NC}
+  ${GREEN}# 1. Configure environment (from repo root)${NC}
+  cp ../.env.example ../.env && vi ../.env
 
-  ${GREEN}# 2. Provision + deploy + migrate in one shot${NC}
-  ./deploy.sh init
+  ${GREEN}# 2. Set up Ansible inventory${NC}
+  cp ansible/inventory.ini.example ansible/inventory.ini
+  vi ansible/inventory.ini   # set your server IP
 
-  ${GREEN}# 3. Open dashboard in browser${NC}
+  ${GREEN}# 3. Deploy v2 stack${NC}
+  ./deploy.sh deploy-v2
+
+  ${GREEN}# 4. Open dashboard in browser${NC}
   ./deploy.sh tunnel   # then visit http://localhost:8080
 
 ${BLUE}Day-to-Day:${NC}
@@ -527,6 +556,7 @@ ${BLUE}Rebuild from scratch:${NC}
   ./deploy.sh init
 
 ${YELLOW}Note:${NC} Make sure .env is configured before running any commands.
+${YELLOW}SSH:${NC}  Set SSH_KEY env var to override the key path (default: ~/.ssh/friendlabs-deploy).
 EOF
 }
 
