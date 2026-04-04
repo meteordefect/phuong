@@ -1313,6 +1313,11 @@ const piAdapter: AgentSessionAdapter = {
 			args.push("--continue");
 		}
 
+		const defaultModel = process.env.DEFAULT_MODEL || process.env.SUBAGENT_MODEL;
+		if (defaultModel && !hasCliOption(args, "--model") && !hasCliOption(args, "--provider")) {
+			args.push("--model", defaultModel);
+		}
+
 		const hooks = resolveHookContext(input);
 		if (hooks) {
 			Object.assign(

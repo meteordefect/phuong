@@ -34,6 +34,9 @@ The following are now considered decided for `v1`:
 - workers run directly on the VPS inside Kanban worktrees for `v1`
 - Docker is not required for `v1` worker execution
 - upstream Kanban support for other agents may remain in the codebase, but `pi` is the only worker we actively integrate and support in `v1`
+- **auth is Clerk** — `@clerk/react` on the client, `@clerk/backend` JWT verification on the server. Auth is conditional on env vars (`VITE_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY`); when unset, the app runs without auth for local development.
+- **no Tailscale gate** — the app goes straight to public HTTPS with Clerk as the auth layer. No intermediate Tailscale-only access phase.
+- **domain is `beta.friendlabs.ai`** — Clerk redirect URLs and TLS are configured for this domain
 
 ## Product Definition
 
@@ -406,12 +409,13 @@ Goal:
 
 - log into the product like a SaaS built for you
 
-Requirements:
+Implementation (decided):
 
-- proper user auth
-- secure cookies or token/session management
-- access control around tenant resources
-- future support for more than one user
+- Clerk is the auth provider
+- client-side: `ClerkProvider` + `RequireAuth` gate in `web-ui/src/main.tsx`, token synced to a module-level store for non-React consumers (tRPC client, WebSocket URLs)
+- server-side: `@clerk/backend` `verifyToken()` in `src/auth/clerk-verify.ts`, guards all `/api/*` HTTP and all WebSocket upgrades
+- env vars: `VITE_CLERK_PUBLISHABLE_KEY` (build-time), `CLERK_SECRET_KEY` (runtime)
+- when env vars are unset, auth is skipped (local dev mode)
 
 ## Networking
 
@@ -469,7 +473,7 @@ Practical note:
 
 The build should be broken into parallel but ordered tracks.
 
-## Track A: Import and baseline Kanban runtime
+## Track A: Import and baseline Kanban runtime ✅
 
 Goal:
 
@@ -492,7 +496,9 @@ Files/modules expected to matter:
 - upstream `src/state/workspace-state.ts`
 - upstream `web-ui/src/App.tsx`
 
-## Track B: Add auth and tenancy
+> Done — Kanban v0.1.47 imported, builds and boots locally. VPS deploy pending (Phase 4 in runsheet).
+
+## Track B: Add auth and tenancy ✅
 
 Goal:
 
@@ -506,6 +512,8 @@ Deliverables:
 - scoped resource access
 
 This track must happen before exposing the app publicly.
+
+> Done — Clerk auth integrated. Client-side gate in `web-ui/src/auth/`, server-side JWT verification in `src/auth/clerk-verify.ts`. All HTTP API and WebSocket paths protected. Tenant scoping deferred to multi-user phase.
 
 ## Track C: Add `Phoung` manager service
 
@@ -548,7 +556,7 @@ Current source material:
 - `docs/MEMORY-SEPARATION.md`
 - `main-agent/src/memory.ts`
 
-## Track E: Add `pi` worker runtime
+## Track E: Add `pi` worker runtime ✅ (initial integration)
 
 Goal:
 
@@ -570,6 +578,8 @@ Likely upstream integration points:
 - `src/terminal/agent-registry.ts`
 - `src/terminal/agent-session-adapters.ts`
 - `src/trpc/runtime-api.ts`
+
+> Done (initial) — pi registered in agent catalog, adapter created in `agent-session-adapters.ts`, launches with `-p --no-session`. RPC integration and structured event parsing deferred to later hardening.
 
 ## Track F: Worker runtime hardening
 
@@ -608,7 +618,7 @@ Examples:
 - PR opened -> record implementation outcome
 - important new pattern -> create/update project memory note
 
-## Track H: VPS deployment and operations
+## Track H: VPS deployment and operations ✅
 
 Goal:
 
@@ -616,49 +626,54 @@ Goal:
 
 Deliverables:
 
-- container or service definitions
-- reverse proxy config
-- persistent volumes
-- TLS
-- backups
-- logs and health checks
-- restart behavior
+- systemd service (`kanban.service.j2`) with auto-restart, journald logging, env file
+- nginx reverse proxy (`kanban-nginx.conf.j2`) with TLS, WebSocket support, Cloudflare-compatible headers
+- Ansible playbook (`kanban-deploy.yml`) — one-command deploy via `./deploy.sh kanban`
+- Let's Encrypt TLS via certbot with auto-renewal cron
+- UFW firewall (SSH + HTTP + HTTPS only)
+- pi installed globally, set as default agent
+- git configured for SSH-based GitHub access on VPS
 
-The current `deploy/docker-compose.yml` is useful only as deployment inspiration, not as the final architecture.
+> Done — No Docker. Node.js runs directly on VPS via systemd. Deploy is `./deploy.sh kanban`.
 
 ## Migration Phases
 
-## Phase 0: Freeze target architecture
+> **Note:** The actual execution order is tracked in `docs/BUILD-RUNSHEET.md`. The original phase numbering below has been revised to match the runsheet. Key changes from the original plan: pi integration was done early (Phase 2, not Phase 5), auth uses Clerk (decided, not open), Tailscale was dropped, and Phase 3+4 were merged.
 
-Outcome:
-
-- approve this document as the target direction
-- stop investing in the current custom UI/board as the future product
-
-## Phase 1: Bring in Kanban code
+## Phase 1: Import Kanban and boot locally ✅
 
 Outcome:
 
 - permanent Kanban code imported into this repo
-- baseline app runs locally
-- baseline app runs on VPS behind private access
+- baseline app builds and runs locally
 
-## Phase 2: Server-host the fork securely
-
-Outcome:
-
-- remote login works
-- VPS is source of truth
-- browser access works from anywhere
-
-## Phase 3: Add manager control plane
+## Phase 2: Add `pi` as Kanban agent ✅
 
 Outcome:
 
-- `Phoung` chat exists inside the hosted product
-- `Phoung` can create and manipulate board tasks
+- pi registered in Kanban agent catalog
+- pi launches tasks in worktrees
+- model defaults to `GLM-5` via `ZAI`
 
-## Phase 4: Externalize memory completely
+## Phase 3: Add Clerk auth ✅
+
+Outcome:
+
+- Clerk login gate on the client
+- JWT verification on all API and WebSocket paths
+- auth conditional on env vars (local dev works without auth)
+
+## Phase 4: Deploy to VPS with public access ✅
+
+Outcome:
+
+- app runs on VPS behind nginx + TLS at `beta.friendlabs.ai`
+- Clerk auth active with production keys
+- pi executes tasks using ZAI/GLM (model from `DEFAULT_MODEL` env var)
+- `./deploy.sh kanban` for one-command deploy via Ansible
+- systemd service, UFW firewall, Let's Encrypt TLS all configured
+
+## Phase 5: Add external memory service
 
 Outcome:
 
@@ -666,74 +681,41 @@ Outcome:
 - memory service owns reads/writes
 - backups and git sync jobs are live
 
-## Phase 5: Add `pi + GLM-5`
+## Phase 6: Add Phoung manager service
 
 Outcome:
 
-- Kanban tasks run through `pi`
-- model defaults to `GLM-5`
-- provider defaults to `ZAI`
-- integration uses structured process communication, preferably `RPC`
-- task runtime works end to end
+- `Phoung` chat exists inside the hosted product
+- `Phoung` can create and manipulate board tasks
 
-## Phase 6: Harden worker execution
-
-Outcome:
-
-- `pi` task execution is robust, supervised, and operationally safe on the VPS
-
-## Phase 7: Add memory enrichment from task lifecycle
+## Phase 7: Connect memory to task lifecycle
 
 Outcome:
 
 - project memories evolve automatically and stay neatly separated
 
-## Phase 8: Multi-tenant hardening
+## Phase 8: Production hardening
 
 Outcome:
 
-- user isolation is enforceable
-- memory roots are tenant-scoped
-- deployment is ready for controlled onboarding of additional users
+- systemd service, Ansible playbook, backups, health monitoring
+- deployment is robust and operationally safe
 
 ## Concrete Planning Decisions To Lock Early
 
 These must be resolved early because they affect the whole design.
 
-### 1. Repository layout
+### 1. Repository layout ✅ decided
 
-Decide:
+Kanban lives in `kanban/` subdirectory. Upstream `.git` removed, code is part of this repo. Extensions (auth, manager, memory) added inside `kanban/src/` to keep a single build.
 
-- import Kanban into this repo root and reshape around it
-- or keep it in a dedicated subdirectory and compose services around it
+### 2. Auth stack ✅ decided
 
-Recommendation:
+Clerk. Client-side `@clerk/react`, server-side `@clerk/backend` JWT verification. Auth boundaries live outside the Kanban core in `src/auth/` and `web-ui/src/auth/`.
 
-- keep the imported code in a dedicated directory such as `kanban/`
-- keep the import initially isolated enough to track upstream cleanly
-- avoid a giant immediate repo rewrite
+### 3. Worker execution mode ✅ decided
 
-### 2. Auth stack
-
-Decide:
-
-- what identity provider or session model to use
-
-Recommendation:
-
-- choose a production-safe hosted auth approach early and keep auth boundaries outside the Kanban core where possible
-
-### 3. Worker execution mode
-
-Decide:
-
-- direct VPS worktree execution for `pi`
-- or container-backed worker for `pi`
-
-Recommendation:
-
-- use direct VPS worktree execution for `v1`
-- defer container-backed execution unless later requirements force it
+Direct VPS worktree execution for `v1`. Pi launches as a CLI process in the Kanban-managed worktree. Container-backed execution deferred.
 
 ### 4. Memory repo model
 
@@ -756,32 +738,22 @@ Recommendation:
 
 - start narrow and structured, not freeform
 
-### 6. Agent surface strategy
+### 6. Agent surface strategy ✅ decided
 
-Decide:
-
-- remove other upstream agents from the codebase
-- or leave them in place and only integrate `pi`
-
-Recommendation:
-
-- leave upstream agent support in the codebase for now
-- do not spend time adapting or productizing those agents in `v1`
-- make `pi` the default supported worker path
+Upstream agent support left in the codebase. Pi is the only actively integrated and supported worker in `v1`. Pi is registered in the agent catalog and has a dedicated adapter.
 
 ## Suggested Initial Deliverable Sequence
 
-Build in this order:
+Build in this order (revised to match actual execution):
 
-1. import and boot Kanban fork locally
-2. run fork on VPS behind private access
-3. add auth and secure remote login
-4. add `Phoung` manager service and chat surface
-5. externalize memory service and backup jobs
-6. integrate `pi + ZAI + GLM-5` task runtime, preferably through `RPC`
-7. add durable memory enrichment from task events
-8. harden worker execution if needed
-9. harden for future multi-user support
+1. ✅ import and boot Kanban fork locally
+2. ✅ add `pi` as Kanban agent (moved up — needed early to validate the fork)
+3. ✅ add Clerk auth (Tailscale step dropped — going straight to public Clerk-gated access)
+4. ✅ deploy to VPS with public HTTPS + Clerk (systemd, nginx, TLS, pi, UFW)
+5. externalize memory service and backup jobs ← **next**
+6. add `Phoung` manager service and chat surface
+7. connect memory to task lifecycle
+8. production hardening (systemd, Ansible, backups, monitoring)
 
 ## Definition of Done
 
@@ -802,11 +774,6 @@ The migration is complete when all of the following are true:
 
 ## Immediate Next Step
 
-The next document after this one should be a technical implementation plan that turns this build strategy into concrete workstreams with exact files and modules for:
+The technical implementation plan is `docs/BUILD-RUNSHEET.md`. It contains step-by-step execution instructions for each phase.
 
-- Kanban import/fork structure
-- auth integration
-- manager service integration
-- memory service design
-- `pi` runtime adapter
-- VPS deployment stack
+Current status: Phases 1–4 complete. The system is live at `beta.friendlabs.ai` with Clerk auth, pi task execution (ZAI/GLM), and full deploy automation. Next action is Phase 5 — adding the external memory service.

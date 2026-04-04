@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage } from "node:http";
 import { join } from "node:path";
 
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
+import { isAuthEnabled, verifyHttpRequest, verifyWebSocketUpgrade } from "../auth/clerk-verify.js";
 import { handleClineMcpOauthCallback } from "../cline-sdk/cline-mcp-runtime-service.js";
 import {
 	type ClineTaskSessionService,
@@ -237,6 +238,14 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				res.end(oauthCallbackResponse.body);
 				return;
 			}
+			if (pathname.startsWith("/api/") && isAuthEnabled()) {
+				const auth = await verifyHttpRequest(req);
+				if (!auth) {
+					res.writeHead(401, { "Content-Type": "application/json; charset=utf-8" });
+					res.end('{"error":"Unauthorized"}');
+					return;
+				}
+			}
 			if (pathname.startsWith("/api/trpc")) {
 				await trpcHttpHandler(req, res);
 				return;
@@ -270,6 +279,19 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			return;
 		}
 		(request as IncomingMessage & { __kanbanUpgradeHandled?: boolean }).__kanbanUpgradeHandled = true;
+		if (isAuthEnabled()) {
+			verifyWebSocketUpgrade(request, requestUrl).then((auth) => {
+				if (!auth) {
+					socket.destroy();
+					return;
+				}
+				const requestedWorkspaceId = requestUrl.searchParams.get("workspaceId")?.trim() || null;
+				deps.runtimeStateHub.handleUpgrade(request, socket, head, { requestedWorkspaceId });
+			}).catch(() => {
+				socket.destroy();
+			});
+			return;
+		}
 		const requestedWorkspaceId = requestUrl.searchParams.get("workspaceId")?.trim() || null;
 		deps.runtimeStateHub.handleUpgrade(request, socket, head, { requestedWorkspaceId });
 	});

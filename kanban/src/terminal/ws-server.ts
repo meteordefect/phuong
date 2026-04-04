@@ -4,6 +4,7 @@ import type { Socket } from "node:net";
 import type { RawData, WebSocket } from "ws";
 import { WebSocketServer } from "ws";
 
+import { isAuthEnabled, verifyWebSocketUpgrade } from "../auth/clerk-verify.js";
 import type { RuntimeTerminalWsServerMessage } from "../core/api-contract.js";
 import { parseTerminalWsClientMessage } from "../core/api-validation.js";
 import { getKanbanRuntimeOrigin } from "../core/runtime-endpoint.js";
@@ -102,22 +103,37 @@ export function createTerminalWebSocketBridge({
 			}
 			upgradeRequest.__kanbanUpgradeHandled = true;
 
-			const taskId = url.searchParams.get("taskId")?.trim();
-			const workspaceId = url.searchParams.get("workspaceId")?.trim();
-			if (!taskId || !workspaceId) {
-				socket.destroy();
-				return;
-			}
-			const terminalManager = resolveTerminalManager(workspaceId);
-			if (!terminalManager) {
-				socket.destroy();
-				return;
-			}
+			const completeUpgrade = () => {
+				const taskId = url.searchParams.get("taskId")?.trim();
+				const workspaceId = url.searchParams.get("workspaceId")?.trim();
+				if (!taskId || !workspaceId) {
+					socket.destroy();
+					return;
+				}
+				const terminalManager = resolveTerminalManager(workspaceId);
+				if (!terminalManager) {
+					socket.destroy();
+					return;
+				}
+				const targetServer = isIoRequest ? ioServer : controlServer;
+				targetServer.handleUpgrade(request, socket, head, (ws: WebSocket) => {
+					targetServer.emit("connection", ws, { taskId, terminalManager });
+				});
+			};
 
-			const targetServer = isIoRequest ? ioServer : controlServer;
-			targetServer.handleUpgrade(request, socket, head, (ws: WebSocket) => {
-				targetServer.emit("connection", ws, { taskId, terminalManager });
-			});
+			if (isAuthEnabled()) {
+				verifyWebSocketUpgrade(request, url).then((auth) => {
+					if (!auth) {
+						socket.destroy();
+						return;
+					}
+					completeUpgrade();
+				}).catch(() => {
+					socket.destroy();
+				});
+				return;
+			}
+			completeUpgrade();
 		} catch {
 			socket.destroy();
 		}

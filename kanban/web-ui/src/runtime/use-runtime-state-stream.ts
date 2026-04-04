@@ -1,5 +1,6 @@
 import { useEffect, useReducer } from "react";
 
+import { getSessionToken } from "@/auth/session-token-store";
 import type {
 	RuntimeClineMcpServerAuthStatus,
 	RuntimeProjectSummary,
@@ -36,11 +37,14 @@ function mergeTaskSessionSummaries(
 	return nextSessions;
 }
 
-function getRuntimeStreamUrl(workspaceId: string | null): string {
+function getRuntimeStreamUrl(workspaceId: string | null, token: string | null): string {
 	const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 	const url = new URL(`${protocol}//${window.location.host}/api/runtime/ws`);
 	if (workspaceId) {
 		url.searchParams.set("workspaceId", workspaceId);
+	}
+	if (token) {
+		url.searchParams.set("token", token);
 	}
 	return url.toString();
 }
@@ -326,7 +330,9 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 			}, delay);
 		};
 
-		const connect = () => {
+		const authRequired = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+
+		const connect = async () => {
 			if (cancelled) {
 				return;
 			}
@@ -336,7 +342,12 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 			}
 			cleanupSocket();
 			try {
-				socket = new WebSocket(getRuntimeStreamUrl(requestedWorkspaceForConnection));
+				const token = await getSessionToken();
+				if (authRequired && !token) {
+					scheduleReconnect();
+					return;
+				}
+				socket = new WebSocket(getRuntimeStreamUrl(requestedWorkspaceForConnection, token));
 			} catch (error) {
 				dispatch({
 					type: "stream_disconnected",

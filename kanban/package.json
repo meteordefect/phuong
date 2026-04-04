@@ -79,6 +79,7 @@
     "vitest": "^4.1.0"
   },
   "dependencies": {
+    "@clerk/backend": "^3.2.4",
     "@clinebot/agents": "^0.0.20",
     "@clinebot/core": "^0.0.20",
     "@clinebot/llms": "^0.0.20",

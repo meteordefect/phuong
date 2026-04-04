@@ -14,6 +14,7 @@
     "e2e": "playwright test"
   },
   "dependencies": {
+    "@clerk/react": "^6.1.4",
     "@clinebot/shared": "^0.0.20",
     "@hello-pangea/dnd": "^18.0.1",
     "@posthog/react": "^1.8.2",

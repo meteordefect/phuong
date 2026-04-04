@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory={{ kanban_install_dir }}
+WorkingDirectory={{ kanban_repo_dir }}
 ExecStart=/usr/bin/node dist/cli.js --host 127.0.0.1 --port {{ kanban_port }} --no-open
 Restart=on-failure
 RestartSec=5

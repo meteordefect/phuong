@@ -5,6 +5,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
+import { getSessionTokenSync } from "@/auth/session-token-store";
 import { estimateTaskSessionGeometry } from "@/runtime/task-session-geometry";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
@@ -44,11 +45,19 @@ interface EnsurePersistentTerminalInput extends PersistentTerminalAppearance {
 	workspaceId: string;
 }
 
+function appendAuthToken(url: URL): void {
+	const token = getSessionTokenSync();
+	if (token) {
+		url.searchParams.set("token", token);
+	}
+}
+
 function getTerminalIoWebSocketUrl(taskId: string, workspaceId: string): string {
 	const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 	const url = new URL(`${protocol}//${window.location.host}/api/terminal/io`);
 	url.searchParams.set("taskId", taskId);
 	url.searchParams.set("workspaceId", workspaceId);
+	appendAuthToken(url);
 	return url.toString();
 }
 
@@ -57,6 +66,7 @@ function getTerminalControlWebSocketUrl(taskId: string, workspaceId: string): st
 	const url = new URL(`${protocol}//${window.location.host}/api/terminal/control`);
 	url.searchParams.set("taskId", taskId);
 	url.searchParams.set("workspaceId", workspaceId);
+	appendAuthToken(url);
 	return url.toString();
 }
 

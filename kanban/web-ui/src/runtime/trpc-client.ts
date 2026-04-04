@@ -1,6 +1,8 @@
 import type { RuntimeAppRouter } from "@runtime-trpc";
 import { createTRPCProxyClient, httpBatchLink, TRPCClientError } from "@trpc/client";
 
+import { getSessionToken } from "@/auth/session-token-store";
+
 interface TrpcErrorDataWithConflictRevision {
 	code?: string;
 	conflictRevision?: number | null;
@@ -20,7 +22,17 @@ export function getRuntimeTrpcClient(workspaceId: string | null): RuntimeTrpcCli
 		links: [
 			httpBatchLink({
 				url: "/api/trpc",
-				headers: () => (workspaceId ? { "x-kanban-workspace-id": workspaceId } : {}),
+				headers: async () => {
+					const h: Record<string, string> = {};
+					if (workspaceId) {
+						h["x-kanban-workspace-id"] = workspaceId;
+					}
+					const token = await getSessionToken();
+					if (token) {
+						h.authorization = `Bearer ${token}`;
+					}
+					return h;
+				},
 			}),
 		],
 	});

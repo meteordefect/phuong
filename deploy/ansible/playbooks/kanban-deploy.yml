@@ -71,18 +71,15 @@
     # --- Build ---
 
     - name: Install Kanban dependencies
-      shell: npm install && npm run install:all
+      shell: npm install --ignore-scripts && npm run install:all
       args:
         chdir: "{{ kanban_repo_dir }}"
-      environment:
-        NODE_ENV: production
 
     - name: Build Kanban (server + web-ui)
-      shell: npm run build
+      shell: set -a && . {{ kanban_env_file }} && set +a && npm run build
       args:
         chdir: "{{ kanban_repo_dir }}"
-      environment:
-        VITE_CLERK_PUBLISHABLE_KEY: "{{ lookup('env', 'VITE_CLERK_PUBLISHABLE_KEY') }}"
+      notify: Restart Kanban
 
     # --- Pi coding agent ---
 
@@ -92,8 +89,15 @@
       changed_when: false
 
     - name: Install pi coding agent globally
-      shell: npm install -g @anthropic-ai/claude-code
+      shell: npm install -g @mariozechner/pi-coding-agent
       when: pi_check.stdout == "missing"
+
+    - name: Set pi as default Kanban agent
+      copy:
+        content: '{"selectedAgentId":"pi"}'
+        dest: /root/.cline/kanban/config.json
+        force: false
+        mode: '0644'
 
     # --- Systemd service ---
 

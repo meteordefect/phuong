@@ -76,7 +76,7 @@ File: `kanban/src/terminal/agent-session-adapters.ts`
 
 Create `piAdapter: AgentSessionAdapter` following the codex adapter pattern:
 
-- set model via env: `ZAI_API_KEY`, `SUBAGENT_MODEL` or `PI_MODEL`
+- reads `DEFAULT_MODEL` or `SUBAGENT_MODEL` from env and passes as `--model` flag (pi defaults to google provider otherwise)
 - pass prompt as the last argument
 - wire up hook context for activity tracking
 - add to the `ADAPTERS` map
@@ -93,69 +93,13 @@ Create `piAdapter: AgentSessionAdapter` following the codex adapter pattern:
 
 pi runs tasks through Kanban locally. Commit.
 
-> **Done** — committed `ff73a90`. Pi appears in onboarding + settings, detected on PATH, launches with `-p --no-session`. API key for ZAI provider needed on VPS.
+> **Done** — committed `ff73a90`. Pi appears in onboarding + settings, detected on PATH, launches with `-p --no-session --model <DEFAULT_MODEL>`. Also added `"pi"` to `normalizeAgentId` allowlist in `runtime-config.ts` (without this, pi selection was silently reverted to cline on every config load).
 
 ---
 
-## Phase 3: Deploy to VPS (private access)
+## Phase 3: Add Clerk auth ✅
 
-### 3.1 Build for server
-
-On the VPS or via Ansible, clone this repo and build the Kanban fork:
-
-```
-cd /srv/clawdeploy/app
-git pull
-cd kanban
-npm install && npm run install:all && npm run build
-```
-
-### 3.2 Run as a service
-
-Create a systemd unit or use pm2/screen to run:
-
-```
-node kanban/dist/cli.js --host 0.0.0.0 --port 4800
-```
-
-Bind to localhost only — nginx will front it.
-
-### 3.3 Configure nginx reverse proxy
-
-Update `deploy/nginx/` config to proxy to the Kanban runtime:
-
-```
-location / {
-    proxy_pass http://127.0.0.1:4800;
-    proxy_http_version 1.1;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_set_header Host $host;
-}
-```
-
-WebSocket upgrade headers are required for terminal streaming and state sync.
-
-### 3.4 Access via Tailscale
-
-Restrict nginx to Tailscale subnet initially (no public access, no auth needed yet).
-
-### 3.5 Verify on VPS
-
-- open `http://<tailscale-ip>:8080` from laptop
-- board loads
-- can create and run a task with pi
-- worktrees created on VPS filesystem
-
-### 3.6 Checkpoint
-
-Kanban + pi running on VPS, accessible via Tailscale. Commit deploy config.
-
----
-
-## Phase 4: Add Clerk auth
-
-### 4.1 Install Clerk dependencies
+### 3.1 Install Clerk dependencies
 
 ```
 cd kanban
@@ -164,59 +108,121 @@ cd web-ui
 npm install @clerk/react
 ```
 
-### 4.2 Server-side auth middleware
+### 3.2 Client-side Clerk integration
 
-File: `kanban/src/server/runtime-server.ts`
+Files created:
 
-In `createTrpcContext`, before building the context:
+- `kanban/web-ui/src/auth/session-token-store.ts` — module-level token getter/cache so non-React code (tRPC client, WebSocket URLs) can access the Clerk session token
+- `kanban/web-ui/src/auth/clerk-auth-gate.tsx` — `ClerkAuthGate` component wrapping `ClerkProvider`, `RequireAuth` (shows `<SignIn />` when unauthenticated), and `TokenSync` (keeps the token store in sync via `useAuth().getToken`)
+- `kanban/web-ui/src/main.tsx` — wraps the app in `ClerkAuthGate` when `VITE_CLERK_PUBLISHABLE_KEY` is set; falls through to no-auth mode when unset (local dev)
 
-- extract `Authorization: Bearer <token>` from request headers
-- use `@clerk/backend` `verifyToken()` to validate the JWT
-- reject with 401 if invalid
-- attach userId to context
+### 3.3 Server-side auth middleware
 
-On WebSocket upgrade (`/api/runtime/ws`, `/api/terminal/io`):
+Files created:
 
-- extract token from query string `?token=<jwt>`
-- verify before allowing upgrade
-- destroy socket if invalid
+- `kanban/src/auth/clerk-verify.ts` — `verifyHttpRequest()` and `verifyWebSocketUpgrade()` using `@clerk/backend` `verifyToken()`. Auth is enabled when `CLERK_SECRET_KEY` env var is set; when unset, all requests pass through (local dev mode).
 
-### 4.3 Client-side Clerk integration
+Files modified:
 
-File: `kanban/web-ui/src/main.tsx` (or equivalent entry point)
+- `kanban/src/server/runtime-server.ts` — all `/api/*` HTTP requests are verified before reaching tRPC. WebSocket upgrade on `/api/runtime/ws` verifies token from query param before completing the upgrade.
+- `kanban/src/terminal/ws-server.ts` — terminal WebSocket upgrades (`/api/terminal/io`, `/api/terminal/control`) verify token before completing the upgrade.
 
-- wrap app in `ClerkProvider`
-- show `<SignIn />` when unauthenticated
-- inject Bearer token into all tRPC requests via headers function
-- pass token as query param for WebSocket connections
+### 3.4 Auth token propagation
 
-### 4.4 Clerk project setup
+Files modified:
+
+- `kanban/web-ui/src/runtime/trpc-client.ts` — injects `Authorization: Bearer <token>` header into all tRPC requests
+- `kanban/web-ui/src/runtime/use-runtime-state-stream.ts` — passes `?token=<jwt>` query param on WebSocket connections; guards against connecting when auth is enabled but token isn't ready yet (race condition on page load)
+- `kanban/web-ui/src/terminal/persistent-terminal-manager.ts` — passes `?token=<jwt>` on terminal WebSocket connections
+
+### 3.5 Clerk project setup (manual step)
 
 - create a Clerk application at dashboard.clerk.com
-- set allowed redirect URLs to your VPS domain
+- set allowed redirect URLs to the VPS domain
 - get publishable key and secret key
 - add to `.env`:
-  - `CLERK_PUBLISHABLE_KEY`
-  - `CLERK_SECRET_KEY`
+  - `VITE_CLERK_PUBLISHABLE_KEY` (client-side, used at build time)
+  - `CLERK_SECRET_KEY` (server-side, used at runtime)
 
-### 4.5 Switch nginx to public access
+### 3.6 Checkpoint
 
-- enable port 443 with TLS (Let's Encrypt via certbot)
-- remove Tailscale-only restriction
-- all auth now handled by Clerk at the application layer
+Clerk auth code is integrated. When env vars are set, the app requires sign-in and verifies all API/WebSocket requests. When env vars are unset, the app runs without auth for local development.
 
-### 4.6 Verify
+> **Done** — Clerk auth integrated into both client and server. Auth is conditional on env vars.
 
-- open `https://yourdomain.com`
+---
+
+## Phase 4: Deploy to VPS with public access ✅
+
+### 4.1 Deploy with one command
+
+From `deploy/`:
+
+```
+./deploy.sh kanban
+```
+
+This runs the `kanban-deploy.yml` Ansible playbook which:
+
+1. Installs Node.js 22 on the VPS (if missing)
+2. Syncs the `kanban/` source to `/opt/kanban/kanban/`
+3. Copies `.env` to `/opt/kanban/.env`
+4. Runs `npm install && npm run install:all && npm run build` (sources `.env` first so `VITE_CLERK_PUBLISHABLE_KEY` is baked into the client build)
+5. Installs a systemd service (`kanban.service`) that runs `node dist/cli.js --host 127.0.0.1 --port 3484 --no-open`
+6. Installs nginx config (`kanban-nginx.conf.j2`) that proxies `https://beta.friendlabs.ai` → `127.0.0.1:3484` with WebSocket support
+7. Obtains TLS certificate via certbot (Let's Encrypt)
+8. Sets up UFW firewall (SSH + HTTP + HTTPS only)
+
+The playbook also:
+
+- Installs `@mariozechner/pi-coding-agent` globally (so `pi` binary is on PATH)
+- Sets `pi` as the default Kanban agent in `/root/.cline/kanban/config.json`
+- Configures git to use SSH for GitHub (`url.git@github.com:.insteadOf https://github.com/`)
+- Restarts the Kanban service after every build
+
+### 4.2 Deploy files
+
+- `deploy/ansible/playbooks/kanban-deploy.yml` — Ansible playbook
+- `deploy/ansible/templates/kanban.service.j2` — systemd unit
+- `deploy/ansible/templates/kanban-nginx.conf.j2` — nginx reverse proxy config (uses `map` for conditional WebSocket `Connection` header)
+
+### 4.3 Operations
+
+```
+./deploy.sh kanban-status    # check systemd service status
+./deploy.sh kanban-logs      # stream journalctl logs
+./deploy.sh kanban-restart   # restart the service
+./deploy.sh ssh              # SSH into the VPS
+```
+
+### 4.4 VPS setup (manual, one-time)
+
+Before the first deploy, set up the VPS project repos:
+
+```
+ssh root@<vps-ip>
+ssh-keygen -t ed25519 -C "kanban-vps"  # add public key to GitHub
+git clone git@github.com:youruser/yourproject.git /opt/repos/yourproject
+```
+
+Then add the project in the Kanban UI using the local path (e.g. `/opt/repos/yourproject`).
+
+### 4.5 Verify
+
+- open `https://beta.friendlabs.ai`
 - Clerk login page appears
 - sign in
-- board loads
+- board loads, Pi is the selected agent
+- can create and run a task with pi (uses ZAI/GLM model from `DEFAULT_MODEL` env var)
+- worktrees created on VPS filesystem at `/root/.cline/worktrees/`
 - unauthenticated requests to `/api/trpc/*` return 401
 - WebSocket connections without token are rejected
 
-### 4.7 Checkpoint
+### 4.6 Checkpoint
 
-Kanban is publicly accessible with Clerk auth. Commit.
+Kanban + pi + Clerk auth running on VPS, publicly accessible at `beta.friendlabs.ai`. Commit deploy config.
+
+> **Done** — Deployed and verified. Clerk auth, WebSocket streaming, pi task execution with ZAI/GLM all working. Key fixes applied: pi added to `normalizeAgentId` allowlist, pi adapter passes `DEFAULT_MODEL` as `--model` flag, nginx uses conditional `Connection` header for WebSocket proxying through Cloudflare, build step sources `.env` for `VITE_CLERK_PUBLISHABLE_KEY`.
 
 ---
 
@@ -381,29 +387,29 @@ Task lifecycle enriches memory automatically. Commit.
 
 ## Phase 8: Production hardening
 
-### 8.1 Process supervision
+> **Note:** Most of 8.1 and 8.2 were completed as part of Phase 4. Remaining items are backup strategy and health monitoring.
 
-Set up systemd service for Kanban runtime:
+### 8.1 Process supervision ✅ (done in Phase 4)
 
-- auto-restart on crash
-- log to journald
-- environment file for secrets
+- systemd service with auto-restart (`kanban.service`)
+- logs to journald
+- environment file for secrets (`/opt/kanban/.env`)
 
-### 8.2 Ansible deployment playbook
+### 8.2 Ansible deployment playbook ✅ (done in Phase 4)
 
-Update `deploy/ansible/playbooks/site.yml` for the new stack:
+`deploy/ansible/playbooks/kanban-deploy.yml` handles:
 
 - sync repo to VPS
-- build Kanban fork
+- build Kanban fork (sources `.env` for build-time vars)
 - install pi globally (`npm i -g @mariozechner/pi-coding-agent`)
+- set pi as default agent
 - configure systemd service
-- configure nginx with TLS
-- set up memory repo and cron
-- configure firewall (UFW)
+- configure nginx with TLS (Let's Encrypt via certbot)
+- configure firewall (UFW: SSH + HTTP + HTTPS only)
 
 ### 8.3 Backup strategy
 
-- memory repo: hourly git push (already in Phase 5)
+- memory repo: hourly git push (Phase 5)
 - Kanban workspace state: daily rsync or git backup
 - Clerk: managed by Clerk (SaaS)
 
