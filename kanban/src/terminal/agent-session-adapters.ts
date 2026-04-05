@@ -1349,6 +1349,25 @@ const piAdapter: AgentSessionAdapter = {
 			args.push("--model", defaultModel);
 		}
 
+		const kimiApiKey =
+			input.env?.KIMI_API_KEY ?? input.env?.MOONSHOT_API_KEY ?? process.env.KIMI_API_KEY ?? process.env.MOONSHOT_API_KEY;
+		if (kimiApiKey) {
+			env.KIMI_API_KEY = kimiApiKey;
+			env.MOONSHOT_API_KEY = kimiApiKey;
+		}
+
+		const zaiApiKey =
+			input.env?.ZAI_API_KEY ?? input.env?.ZHIPU_API_KEY ?? process.env.ZAI_API_KEY ?? process.env.ZHIPU_API_KEY;
+		if (zaiApiKey) {
+			env.ZAI_API_KEY = zaiApiKey;
+			env.ZHIPU_API_KEY = zaiApiKey;
+		}
+
+		const anthropicApiKey = input.env?.ANTHROPIC_API_KEY ?? process.env.ANTHROPIC_API_KEY;
+		if (anthropicApiKey) {
+			env.ANTHROPIC_API_KEY = anthropicApiKey;
+		}
+
 		const hooks = resolveHookContext(input);
 		if (hooks) {
 			const extensionPath = join(getHookAgentDirectory("pi"), "kanban-hooks.ts");

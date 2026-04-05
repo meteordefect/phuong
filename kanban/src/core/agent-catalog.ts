@@ -62,7 +62,7 @@ export const RUNTIME_AGENT_CATALOG: RuntimeAgentCatalogEntry[] = [
 		id: "pi",
 		label: "Pi",
 		binary: "pi",
-		baseArgs: ["-p", "--no-session"],
+		baseArgs: ["-p"],
 		autonomousArgs: [],
 		installUrl: "https://github.com/mariozechner/pi-coding-agent",
 	},

@@ -58,10 +58,24 @@ export interface RuntimeStateHub {
 	close: () => Promise<void>;
 }
 
+export function didTaskEnterReviewFromTerminalExit(
+	previousSummary: RuntimeTaskSessionSummary | undefined,
+	nextSummary: RuntimeTaskSessionSummary,
+): boolean {
+	if (nextSummary.state !== "awaiting_review") {
+		return false;
+	}
+	if (nextSummary.reviewReason !== "exit" && nextSummary.reviewReason !== "error") {
+		return false;
+	}
+	return previousSummary?.state !== "awaiting_review";
+}
+
 export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): RuntimeStateHub {
 	const terminalSummaryUnsubscribeByWorkspaceId = new Map<string, () => void>();
 	const clineSummaryUnsubscribeByWorkspaceId = new Map<string, () => void>();
 	const clineMessageUnsubscribeByWorkspaceId = new Map<string, () => void>();
+	const terminalPreviousSummaryByWorkspaceId = new Map<string, Map<string, RuntimeTaskSessionSummary>>();
 	const clinePreviousSummaryByWorkspaceId = new Map<string, Map<string, RuntimeTaskSessionSummary>>();
 	const pendingTaskSessionSummariesByWorkspaceId = new Map<string, Map<string, RuntimeTaskSessionSummary>>();
 	const taskSessionBroadcastTimersByWorkspaceId = new Map<string, NodeJS.Timeout>();
@@ -238,6 +252,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			}
 		}
 		terminalSummaryUnsubscribeByWorkspaceId.delete(workspaceId);
+		terminalPreviousSummaryByWorkspaceId.delete(workspaceId);
 		const unsubscribeClineSummary = clineSummaryUnsubscribeByWorkspaceId.get(workspaceId);
 		if (unsubscribeClineSummary) {
 			try {
@@ -487,8 +502,15 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			if (terminalSummaryUnsubscribeByWorkspaceId.has(workspaceId)) {
 				return;
 			}
+			const previousSummariesByTaskId = new Map<string, RuntimeTaskSessionSummary>();
+			terminalPreviousSummaryByWorkspaceId.set(workspaceId, previousSummariesByTaskId);
 			const unsubscribe = manager.onSummary((summary) => {
+				const previousSummary = previousSummariesByTaskId.get(summary.taskId);
+				previousSummariesByTaskId.set(summary.taskId, summary);
 				queueTaskSessionSummaryBroadcast(workspaceId, summary);
+				if (didTaskEnterReviewFromTerminalExit(previousSummary, summary)) {
+					broadcastTaskReadyForReview(workspaceId, summary.taskId);
+				}
 			});
 			terminalSummaryUnsubscribeByWorkspaceId.set(workspaceId, unsubscribe);
 		},
@@ -555,6 +577,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 				}
 			}
 			terminalSummaryUnsubscribeByWorkspaceId.clear();
+			terminalPreviousSummaryByWorkspaceId.clear();
 			for (const unsubscribe of clineSummaryUnsubscribeByWorkspaceId.values()) {
 				try {
 					unsubscribe();

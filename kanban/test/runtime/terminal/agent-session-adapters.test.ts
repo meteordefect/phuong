@@ -387,6 +387,77 @@ describe("prepareAgentLaunch hook strategies", () => {
 		expect(postToolUseScript).toContain("plan_mode_respond");
 	});
 
+	it("passes explicit provider env vars to pi and keeps session support enabled", async () => {
+		setupTempHome();
+		const originalKimiApiKey = process.env.KIMI_API_KEY;
+		const originalMoonshotApiKey = process.env.MOONSHOT_API_KEY;
+		const originalZaiApiKey = process.env.ZAI_API_KEY;
+		const originalZhipuApiKey = process.env.ZHIPU_API_KEY;
+		const originalAnthropicApiKey = process.env.ANTHROPIC_API_KEY;
+		const originalDefaultModel = process.env.DEFAULT_MODEL;
+		try {
+			process.env.KIMI_API_KEY = "kimi-key";
+			delete process.env.MOONSHOT_API_KEY;
+			delete process.env.ZAI_API_KEY;
+			process.env.ZHIPU_API_KEY = "zhipu-key";
+			process.env.ANTHROPIC_API_KEY = "anthropic-key";
+			process.env.DEFAULT_MODEL = "zai/glm-4.7";
+
+			const launch = await prepareAgentLaunch({
+				taskId: "task-pi",
+				agentId: "pi",
+				binary: "pi",
+				args: ["-p"],
+				cwd: "/tmp",
+				prompt: "Check README",
+				workspaceId: "workspace-1",
+			});
+
+			expect(launch.args).toContain("-p");
+			expect(launch.args).not.toContain("--no-session");
+			expect(launch.args).toContain("--model");
+			expect(launch.args).toContain("zai/glm-4.7");
+			expect(launch.env.KIMI_API_KEY).toBe("kimi-key");
+			expect(launch.env.MOONSHOT_API_KEY).toBe("kimi-key");
+			expect(launch.env.ZAI_API_KEY).toBe("zhipu-key");
+			expect(launch.env.ZHIPU_API_KEY).toBe("zhipu-key");
+			expect(launch.env.ANTHROPIC_API_KEY).toBe("anthropic-key");
+			expect(launch.env.KANBAN_HOOK_TASK_ID).toBe("task-pi");
+			expect(launch.env.KANBAN_HOOK_WORKSPACE_ID).toBe("workspace-1");
+		} finally {
+			if (originalKimiApiKey === undefined) {
+				delete process.env.KIMI_API_KEY;
+			} else {
+				process.env.KIMI_API_KEY = originalKimiApiKey;
+			}
+			if (originalMoonshotApiKey === undefined) {
+				delete process.env.MOONSHOT_API_KEY;
+			} else {
+				process.env.MOONSHOT_API_KEY = originalMoonshotApiKey;
+			}
+			if (originalZaiApiKey === undefined) {
+				delete process.env.ZAI_API_KEY;
+			} else {
+				process.env.ZAI_API_KEY = originalZaiApiKey;
+			}
+			if (originalZhipuApiKey === undefined) {
+				delete process.env.ZHIPU_API_KEY;
+			} else {
+				process.env.ZHIPU_API_KEY = originalZhipuApiKey;
+			}
+			if (originalAnthropicApiKey === undefined) {
+				delete process.env.ANTHROPIC_API_KEY;
+			} else {
+				process.env.ANTHROPIC_API_KEY = originalAnthropicApiKey;
+			}
+			if (originalDefaultModel === undefined) {
+				delete process.env.DEFAULT_MODEL;
+			} else {
+				process.env.DEFAULT_MODEL = originalDefaultModel;
+			}
+		}
+	});
+
 	it("adds resume flags for each agent", async () => {
 		setupTempHome();
 

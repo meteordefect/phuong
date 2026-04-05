@@ -22,6 +22,28 @@ const SHIFT_ENTER_SEQUENCE = "\n";
 const RESIZE_DEBOUNCE_MS = 50;
 const INTERRUPT_IDLE_SETTLE_MS = 250;
 const PARKING_ROOT_ID = "kb-persistent-terminal-parking-root";
+const GENERIC_TERMINAL_DISCONNECT_ERRORS = [
+	"Terminal stream closed. Close and reopen to reconnect.",
+	"Terminal control connection closed. Close and reopen to reconnect.",
+] as const;
+
+export function shouldSuppressTerminalDisconnectError(
+	summary: RuntimeTaskSessionSummary | null,
+	lastError: string | null,
+): boolean {
+	if (!summary) {
+		return false;
+	}
+	if (
+		summary.state !== "awaiting_review" &&
+		summary.state !== "idle" &&
+		summary.state !== "failed" &&
+		summary.state !== "interrupted"
+	) {
+		return false;
+	}
+	return lastError === null || GENERIC_TERMINAL_DISCONNECT_ERRORS.includes(lastError as (typeof GENERIC_TERMINAL_DISCONNECT_ERRORS)[number]);
+}
 
 interface PersistentTerminalAppearance {
 	cursorColor: string;
@@ -219,6 +241,16 @@ class PersistentTerminal {
 		}
 	}
 
+	private handleSocketClosed(defaultMessage: string): void {
+		if (shouldSuppressTerminalDisconnectError(this.latestSummary, this.lastError)) {
+			this.lastError = null;
+			this.notifyLastError();
+			return;
+		}
+		this.lastError = defaultMessage;
+		this.notifyLastError();
+	}
+
 	private sendControlMessage(message: RuntimeTerminalWsClientMessage): void {
 		if (!this.controlSocket || this.controlSocket.readyState !== WebSocket.OPEN) {
 			return;
@@ -290,8 +322,7 @@ class PersistentTerminal {
 				this.attachAddon = null;
 			}
 			this.connectionReady = false;
-			this.lastError = "Terminal stream closed. Close and reopen to reconnect.";
-			this.notifyLastError();
+			this.handleSocketClosed("Terminal stream closed. Close and reopen to reconnect.");
 		};
 	}
 
@@ -341,8 +372,7 @@ class PersistentTerminal {
 				return;
 			}
 			this.controlSocket = null;
-			this.lastError = "Terminal control connection closed. Close and reopen to reconnect.";
-			this.notifyLastError();
+			this.handleSocketClosed("Terminal control connection closed. Close and reopen to reconnect.");
 		};
 	}
 
