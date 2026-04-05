@@ -6,7 +6,7 @@ import type { RuntimeAgentId, RuntimeHookEvent, RuntimeTaskImage, RuntimeTaskSes
 import { buildKanbanCommandParts } from "../core/kanban-command.js";
 import { quoteShellArg } from "../core/shell.js";
 import { lockedFileSystem } from "../fs/locked-file-system.js";
-import { resolveHomeAgentAppendSystemPrompt } from "../prompts/append-system-prompt.js";
+import { resolveHomeAgentAppendSystemPrompt, resolveTaskAgentAppendSystemPrompt } from "../prompts/append-system-prompt.js";
 import { getRuntimeHomePath } from "../state/workspace-state.js";
 import { createHookRuntimeEnv } from "./hook-runtime-context.js";
 import {
@@ -584,6 +584,18 @@ async function ensureTextFile(filePath: string, content: string, executable = fa
 	});
 }
 
+function prependTaskWorkflowToPrompt(taskId: string, prompt: string): string {
+	const taskWorkflowPrompt = resolveTaskAgentAppendSystemPrompt(taskId);
+	if (!taskWorkflowPrompt) {
+		return prompt;
+	}
+	const trimmed = prompt.trim();
+	if (!trimmed) {
+		return taskWorkflowPrompt;
+	}
+	return `${taskWorkflowPrompt}\n---\n\n${trimmed}`;
+}
+
 function withPrompt(args: string[], prompt: string, mode: "append" | "flag", flag?: string): PreparedAgentLaunch {
 	const trimmed = prompt.trim();
 	if (!trimmed) {
@@ -607,7 +619,7 @@ const claudeAdapter: AgentSessionAdapter = {
 	async prepare(input) {
 		const args = [...input.args];
 		const env: Record<string, string | undefined> = {};
-		const appendedSystemPrompt = resolveHomeAgentAppendSystemPrompt(input.taskId);
+		const appendedSystemPrompt = resolveHomeAgentAppendSystemPrompt(input.taskId) ?? resolveTaskAgentAppendSystemPrompt(input.taskId);
 		if (
 			input.autonomousModeEnabled &&
 			!input.startInPlanMode &&
@@ -736,7 +748,7 @@ const codexAdapter: AgentSessionAdapter = {
 		const codexArgs = [...input.args];
 		const env: Record<string, string | undefined> = {};
 		let binary = input.binary;
-		const appendedSystemPrompt = resolveHomeAgentAppendSystemPrompt(input.taskId);
+		const appendedSystemPrompt = resolveHomeAgentAppendSystemPrompt(input.taskId) ?? resolveTaskAgentAppendSystemPrompt(input.taskId);
 
 		if (input.autonomousModeEnabled && !hasCliOption(codexArgs, "--dangerously-bypass-approvals-and-sandbox")) {
 			codexArgs.push("--dangerously-bypass-approvals-and-sandbox");
@@ -863,7 +875,8 @@ const geminiAdapter: AgentSessionAdapter = {
 			env.GEMINI_CLI_SYSTEM_SETTINGS_PATH = configPath;
 		}
 
-		const trimmed = input.prompt.trim();
+		const effectivePrompt = prependTaskWorkflowToPrompt(input.taskId, input.prompt);
+		const trimmed = effectivePrompt.trim();
 		if (trimmed) {
 			args.push("-i", trimmed);
 			return {
@@ -1157,7 +1170,8 @@ const opencodeAdapter: AgentSessionAdapter = {
 			}
 		}
 
-		const trimmed = input.prompt.trim();
+		const effectivePrompt = prependTaskWorkflowToPrompt(input.taskId, input.prompt);
+		const trimmed = effectivePrompt.trim();
 		if (trimmed) {
 			args.push("--prompt", trimmed);
 			return {
@@ -1235,7 +1249,8 @@ const droidAdapter: AgentSessionAdapter = {
 			}
 		}
 
-		const withPromptLaunch = withPrompt(args, input.prompt, "append");
+		const effectivePrompt = prependTaskWorkflowToPrompt(input.taskId, input.prompt);
+		const withPromptLaunch = withPrompt(args, effectivePrompt, "append");
 		return {
 			...withPromptLaunch,
 			env: {
@@ -1292,7 +1307,8 @@ const clineAdapter: AgentSessionAdapter = {
 			);
 		}
 
-		const withPromptLaunch = withPrompt(args, input.prompt, "append");
+		const effectivePrompt = prependTaskWorkflowToPrompt(input.taskId, input.prompt);
+		const withPromptLaunch = withPrompt(args, effectivePrompt, "append");
 		return {
 			...withPromptLaunch,
 			env: {
@@ -1338,7 +1354,7 @@ const piAdapter: AgentSessionAdapter = {
 	async prepare(input) {
 		const args = [...input.args];
 		const env: Record<string, string | undefined> = {};
-		const appendedSystemPrompt = resolveHomeAgentAppendSystemPrompt(input.taskId);
+		const appendedSystemPrompt = resolveHomeAgentAppendSystemPrompt(input.taskId) ?? resolveTaskAgentAppendSystemPrompt(input.taskId);
 
 		if (input.resumeFromTrash && !hasCliOption(args, "--continue")) {
 			args.push("--continue");

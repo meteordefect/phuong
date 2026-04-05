@@ -121,6 +121,157 @@ describe("prepareAgentLaunch hook strategies", () => {
 		expect(launch.args[configArgIndex + 1]).toContain("'/usr/local/bin/node' '/Users/example/repo/dist/cli.js' task create");
 	});
 
+	it("appends task workflow instructions for non-home Claude sessions", async () => {
+		setupTempHome();
+		setKanbanProcessContext();
+		const launch = await prepareAgentLaunch({
+			taskId: "task-1",
+			agentId: "claude",
+			binary: "claude",
+			args: [],
+			cwd: "/tmp",
+			prompt: "",
+			workspaceId: "workspace-1",
+		});
+
+		const appendPromptIndex = launch.args.indexOf("--append-system-prompt");
+		expect(appendPromptIndex).toBeGreaterThanOrEqual(0);
+		expect(launch.args[appendPromptIndex + 1]).toContain("Kanban Task Workflow");
+		expect(launch.args[appendPromptIndex + 1]).toContain("DO NOT push or merge directly to the main or base branch");
+		expect(launch.args[appendPromptIndex + 1]).not.toContain("Kanban sidebar agent");
+	});
+
+	it("appends task workflow instructions for non-home Pi sessions", async () => {
+		setupTempHome();
+		setKanbanProcessContext();
+		const launch = await prepareAgentLaunch({
+			taskId: "task-pi-1",
+			agentId: "pi",
+			binary: "pi",
+			args: [],
+			cwd: "/tmp",
+			prompt: "",
+			workspaceId: "workspace-1",
+		});
+
+		const appendPromptIndex = launch.args.indexOf("--append-system-prompt");
+		expect(appendPromptIndex).toBeGreaterThanOrEqual(0);
+		expect(launch.args[appendPromptIndex + 1]).toContain("Kanban Task Workflow");
+		expect(launch.args[appendPromptIndex + 1]).toContain("DO NOT push or merge directly to the main or base branch");
+		expect(launch.args[appendPromptIndex + 1]).not.toContain("Kanban sidebar agent");
+	});
+
+	it("appends task workflow instructions for non-home Codex sessions", async () => {
+		setupTempHome();
+		setKanbanProcessContext();
+		const launch = await prepareAgentLaunch({
+			taskId: "task-codex-1",
+			agentId: "codex",
+			binary: "codex",
+			args: [],
+			cwd: "/tmp",
+			prompt: "",
+		});
+
+		const configArgIndex = launch.args.indexOf("-c");
+		expect(configArgIndex).toBeGreaterThanOrEqual(0);
+		expect(launch.args[configArgIndex + 1]).toContain("developer_instructions=");
+		expect(launch.args[configArgIndex + 1]).toContain("Kanban Task Workflow");
+		expect(launch.args[configArgIndex + 1]).toContain("DO NOT push or merge directly to the main or base branch");
+		expect(launch.args[configArgIndex + 1]).not.toContain("Kanban sidebar agent");
+	});
+
+	it("prepends task workflow instructions to Cline task prompt", async () => {
+		setupTempHome();
+		const launch = await prepareAgentLaunch({
+			taskId: "task-cline-workflow",
+			agentId: "cline",
+			binary: "cline",
+			args: [],
+			cwd: "/tmp",
+			prompt: "Fix the CSS layout",
+			workspaceId: "workspace-1",
+		});
+
+		const lastArg = launch.args.at(-1) ?? "";
+		expect(lastArg).toContain("Kanban Task Workflow");
+		expect(lastArg).toContain("DO NOT push or merge directly to the main or base branch");
+		expect(lastArg).toContain("Fix the CSS layout");
+	});
+
+	it("prepends task workflow instructions to Gemini task prompt", async () => {
+		setupTempHome();
+		const launch = await prepareAgentLaunch({
+			taskId: "task-gemini-workflow",
+			agentId: "gemini",
+			binary: "gemini",
+			args: [],
+			cwd: "/tmp",
+			prompt: "Update the README",
+			workspaceId: "workspace-1",
+		});
+
+		const iArgIndex = launch.args.indexOf("-i");
+		expect(iArgIndex).toBeGreaterThanOrEqual(0);
+		expect(launch.args[iArgIndex + 1]).toContain("Kanban Task Workflow");
+		expect(launch.args[iArgIndex + 1]).toContain("DO NOT push or merge directly to the main or base branch");
+		expect(launch.args[iArgIndex + 1]).toContain("Update the README");
+	});
+
+	it("prepends task workflow instructions to OpenCode task prompt", async () => {
+		setupTempHome();
+		const launch = await prepareAgentLaunch({
+			taskId: "task-opencode-workflow",
+			agentId: "opencode",
+			binary: "opencode",
+			args: [],
+			cwd: "/tmp",
+			prompt: "Refactor the auth module",
+		});
+
+		const promptArgIndex = launch.args.indexOf("--prompt");
+		expect(promptArgIndex).toBeGreaterThanOrEqual(0);
+		expect(launch.args[promptArgIndex + 1]).toContain("Kanban Task Workflow");
+		expect(launch.args[promptArgIndex + 1]).toContain("DO NOT push or merge directly to the main or base branch");
+		expect(launch.args[promptArgIndex + 1]).toContain("Refactor the auth module");
+	});
+
+	it("prepends task workflow instructions to Droid task prompt", async () => {
+		setupTempHome();
+		const launch = await prepareAgentLaunch({
+			taskId: "task-droid-workflow",
+			agentId: "droid",
+			binary: "droid",
+			args: [],
+			cwd: "/tmp",
+			prompt: "Add unit tests",
+			workspaceId: "workspace-1",
+		});
+
+		const lastArg = launch.args.at(-1) ?? "";
+		expect(lastArg).toContain("Kanban Task Workflow");
+		expect(lastArg).toContain("DO NOT push or merge directly to the main or base branch");
+		expect(lastArg).toContain("Add unit tests");
+	});
+
+	it("does not prepend task workflow to home agent sessions", async () => {
+		setupTempHome();
+		setKanbanProcessContext();
+		const launch = await prepareAgentLaunch({
+			taskId: "__home_agent__:workspace-1:gemini:abc123",
+			agentId: "gemini",
+			binary: "gemini",
+			args: [],
+			cwd: "/tmp",
+			prompt: "List tasks",
+		});
+
+		const iArgIndex = launch.args.indexOf("-i");
+		expect(iArgIndex).toBeGreaterThanOrEqual(0);
+		expect(launch.args[iArgIndex + 1]).not.toContain("Kanban Task Workflow");
+		expect(launch.args[iArgIndex + 1]).toBe("List tasks");
+	});
+
 	it("writes Claude settings with explicit permission hook", async () => {
 		setupTempHome();
 		await prepareAgentLaunch({
@@ -401,7 +552,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 			delete process.env.ZAI_API_KEY;
 			process.env.ZHIPU_API_KEY = "zhipu-key";
 			process.env.ANTHROPIC_API_KEY = "anthropic-key";
-			process.env.DEFAULT_MODEL = "zai/glm-4.7";
+			process.env.DEFAULT_MODEL = "zai/glm-5-turbo";
 
 			const launch = await prepareAgentLaunch({
 				taskId: "task-pi",
@@ -416,7 +567,7 @@ describe("prepareAgentLaunch hook strategies", () => {
 			expect(launch.args).toContain("-p");
 			expect(launch.args).not.toContain("--no-session");
 			expect(launch.args).toContain("--model");
-			expect(launch.args).toContain("zai/glm-4.7");
+			expect(launch.args).toContain("zai/glm-5-turbo");
 			expect(launch.env.KIMI_API_KEY).toBe("kimi-key");
 			expect(launch.env.MOONSHOT_API_KEY).toBe("kimi-key");
 			expect(launch.env.ZAI_API_KEY).toBe("zhipu-key");

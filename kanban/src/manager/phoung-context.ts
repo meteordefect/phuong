@@ -2,6 +2,7 @@ import {
 	isMemoryConfigured,
 	loadSystemPrompt,
 	loadOverview,
+	loadProjectContext,
 } from "../memory/memory-service.js";
 
 export function assemblePhoungSystemPrompt(): string {

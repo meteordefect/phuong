@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
 	renderAppendSystemPrompt,
+	renderTaskAgentAppendSystemPrompt,
 	resolveAppendSystemPromptCommandPrefix,
 	resolveHomeAgentAppendSystemPrompt,
+	resolveTaskAgentAppendSystemPrompt,
 } from "../../src/prompts/append-system-prompt.js";
 
 describe("resolveAppendSystemPromptCommandPrefix", () => {
@@ -105,5 +107,34 @@ describe("resolveHomeAgentAppendSystemPrompt", () => {
 		expect(prompt).toContain("Current home agent: `codex`");
 		expect(prompt).toContain("codex mcp add linear --url https://mcp.linear.app/mcp");
 		expect(prompt).not.toContain("claude mcp add --transport http --scope user linear https://mcp.linear.app/mcp");
+	});
+});
+
+describe("renderTaskAgentAppendSystemPrompt", () => {
+	it("contains task workflow instructions and Kanban context", () => {
+		const rendered = renderTaskAgentAppendSystemPrompt();
+		expect(rendered).toContain("Kanban Task Workflow");
+		expect(rendered).toContain("Phoung");
+		expect(rendered).toContain("Kanban board");
+		expect(rendered).toContain("dedicated git worktree branch");
+		expect(rendered).toContain("DO NOT push or merge directly to the main or base branch");
+		expect(rendered).toContain("Commit your changes to the current task branch");
+		expect(rendered).toContain("Push the task branch to the remote");
+		expect(rendered).toContain("Open a pull request");
+		expect(rendered).toContain("Do not merge any pull request yourself");
+		expect(rendered).toContain("founder reviews all work");
+	});
+});
+
+describe("resolveTaskAgentAppendSystemPrompt", () => {
+	it("returns task workflow prompt for non-home task sessions", () => {
+		const prompt = resolveTaskAgentAppendSystemPrompt("task-1");
+		expect(prompt).not.toBeNull();
+		expect(prompt).toContain("Kanban Task Workflow");
+		expect(prompt).toContain("DO NOT push or merge directly to the main or base branch");
+	});
+
+	it("returns null for home agent sessions", () => {
+		expect(resolveTaskAgentAppendSystemPrompt("__home_agent__:workspace-1:codex:abc123")).toBeNull();
 	});
 });

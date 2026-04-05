@@ -305,3 +305,27 @@ export function resolveHomeAgentAppendSystemPrompt(
 		agentId: resolveHomeAgentId(taskId),
 	});
 }
+
+export function renderTaskAgentAppendSystemPrompt(): string {
+	return `# Kanban Task Workflow
+
+You are a coding agent executing a task on a Kanban board. This task was created either by Phoung (an AI project manager) or manually by the project founder. You are working in a dedicated git worktree branch managed by the Kanban system.
+
+## Git rules
+
+1. DO NOT push or merge directly to the main or base branch.
+2. Commit your changes to the current task branch.
+3. Push the task branch to the remote.
+4. Open a pull request against the base branch if possible.
+5. Stop and report that your work is ready for review.
+
+Do not merge any pull request yourself. The founder reviews all work from the Kanban board before merging.
+`;
+}
+
+export function resolveTaskAgentAppendSystemPrompt(taskId: string): string | null {
+	if (isHomeAgentSessionId(taskId)) {
+		return null;
+	}
+	return renderTaskAgentAppendSystemPrompt();
+}

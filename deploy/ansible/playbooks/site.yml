@@ -296,10 +296,10 @@
       delay: 5
       until: health_check.stdout == ""
 
-    - name: Configure OpenClaw gateway model (ZAI/GLM-4.7)
+    - name: Configure OpenClaw gateway model (ZAI/GLM-5-Turbo)
       shell: >
         cd {{ project_dir }} &&
-        docker exec openclaw-gateway node openclaw.mjs models set zai/glm-4.7
+        docker exec openclaw-gateway node openclaw.mjs models set zai/glm-5-turbo
       ignore_errors: yes
       when: openclaw_source_dir.stat.exists | default(false)
 
