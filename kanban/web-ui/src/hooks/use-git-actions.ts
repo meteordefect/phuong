@@ -44,6 +44,7 @@ interface UseGitActionsInput {
 	fetchTaskWorkspaceInfo: (task: BoardCard) => Promise<RuntimeTaskWorkspaceInfoResponse | null>;
 	isGitHistoryOpen: boolean;
 	refreshWorkspaceState: () => Promise<void>;
+	registerReviewGitActionHold: (taskId: string) => void;
 }
 
 export interface UseGitActionsResult {
@@ -94,6 +95,7 @@ export function useGitActions({
 	fetchTaskWorkspaceInfo,
 	isGitHistoryOpen,
 	refreshWorkspaceState,
+	registerReviewGitActionHold,
 }: UseGitActionsInput): UseGitActionsResult {
 	const [runningGitAction, setRunningGitAction] = useState<RuntimeGitSyncAction | null>(null);
 	const [taskGitActionLoadingByTaskId, setTaskGitActionLoadingByTaskId] = useState<
@@ -245,6 +247,8 @@ export function useGitActions({
 					return false;
 				}
 
+				registerReviewGitActionHold(taskId);
+
 				const snapshot = getTaskWorkspaceSnapshot(taskId);
 				const snapshotWorkspaceInfo = snapshot
 					? {
@@ -306,6 +310,7 @@ export function useGitActions({
 								taskId,
 								prompt,
 								baseRef: selection.card.baseRef,
+								oneShotGitAction: true,
 							});
 							if (payload.ok && payload.summary) {
 								return true;
@@ -344,6 +349,7 @@ export function useGitActions({
 			board,
 			currentProjectId,
 			fetchTaskWorkspaceInfo,
+			registerReviewGitActionHold,
 			runtimeProjectConfig,
 			sendTaskChatMessage,
 			sendTaskSessionInput,

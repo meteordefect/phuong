@@ -1,6 +1,6 @@
 import * as Collapsible from "@radix-ui/react-collapsible";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { ChevronDown, ChevronUp, Ellipsis, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Ellipsis, Maximize2, Minimize2, Plus } from "lucide-react";
 import { type MouseEvent as ReactMouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ClineIcon } from "@/components/ui/cline-icon";
@@ -74,13 +74,22 @@ export function ProjectNavigationPanel({
 	const COLLAPSE_THRESHOLD = 120;
 	const MIN_EXPANDED = 180;
 	const MAX_WIDTH = 400;
+	const EXPANDED_PHOUNG_WIDTH = 600;
+	const [isPhoungExpanded, setIsPhoungExpanded] = useState(false);
+	const isAgentExpanded = isPhoungExpanded && activeSection === "agent";
 	const startDrag = useCallback((e: ReactMouseEvent) => {
 		e.preventDefault();
-		dragRef.current = { startX: e.clientX, startWidth: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth };
+		if (isPhoungExpanded) {
+			setIsPhoungExpanded(false);
+			setSidebarWidth(MAX_WIDTH);
+			dragRef.current = { startX: e.clientX, startWidth: MAX_WIDTH };
+		} else {
+			dragRef.current = { startX: e.clientX, startWidth: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth };
+		}
 		setIsDragging(true);
 		document.body.style.userSelect = "none";
 		document.body.style.cursor = "ew-resize";
-	}, [sidebarWidth, isCollapsed]);
+	}, [sidebarWidth, isCollapsed, isPhoungExpanded]);
 	useEffect(() => {
 		if (!isDragging) return;
 		const onMouseMove = (e: MouseEvent) => {
@@ -104,6 +113,12 @@ export function ProjectNavigationPanel({
 		window.addEventListener("mouseup", onMouseUp);
 		return () => { window.removeEventListener("mousemove", onMouseMove); window.removeEventListener("mouseup", onMouseUp); };
 	}, [isDragging]);
+
+	useEffect(() => {
+		if (activeSection !== "agent") {
+			setIsPhoungExpanded(false);
+		}
+	}, [activeSection]);
 
 	if (isCollapsed) {
 		return (
@@ -151,10 +166,11 @@ export function ProjectNavigationPanel({
 		<aside
 			className="flex flex-col min-h-0 overflow-hidden bg-surface-1 relative shrink-0"
 			style={{
-				width: sidebarWidth,
+				width: isAgentExpanded ? EXPANDED_PHOUNG_WIDTH : sidebarWidth,
 				minWidth: MIN_EXPANDED,
-				maxWidth: MAX_WIDTH,
+				maxWidth: isAgentExpanded ? EXPANDED_PHOUNG_WIDTH : MAX_WIDTH,
 				borderRight: "1px solid var(--color-divider)",
+				transition: isDragging ? undefined : "width 200ms ease, max-width 200ms ease",
 			}}
 		>
 			<div onMouseDown={startDrag} className="absolute top-0 right-0 bottom-0 w-1.5 cursor-ew-resize z-10 hover:bg-accent/20" />
@@ -196,10 +212,19 @@ export function ProjectNavigationPanel({
 					</div>
 				</div>
 				{activeSection === "agent" ? (
-					<p className="text-text-tertiary text-xs" style={{ padding: "8px 4px 0" }}>
-						Plan work, create tasks, and manage your board. Phoung remembers your projects and
-						can break features into actionable tasks.
-					</p>
+					<div className="flex items-start gap-2" style={{ padding: "8px 4px 0" }}>
+						<p className="flex-1 text-text-tertiary text-xs">
+							Plan work, create tasks, and manage your board. Phoung remembers your projects and
+							can break features into actionable tasks.
+						</p>
+						<Button
+							variant="ghost"
+							size="sm"
+							icon={isPhoungExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+							onClick={() => setIsPhoungExpanded((prev) => !prev)}
+							aria-label={isPhoungExpanded ? "Collapse panel" : "Expand panel"}
+						/>
+					</div>
 				) : null}
 			</div>
 

@@ -80,6 +80,7 @@ export interface StartTaskSessionRequest {
 	images?: RuntimeTaskImage[];
 	startInPlanMode?: boolean;
 	resumeFromTrash?: boolean;
+	oneShotGitAction?: boolean;
 	cols?: number;
 	rows?: number;
 	env?: Record<string, string | undefined>;
@@ -252,10 +253,14 @@ export class TerminalSessionManager implements TerminalSessionService {
 
 	async startTaskSession(request: StartTaskSessionRequest): Promise<RuntimeTaskSessionSummary> {
 		const entry = this.ensureEntry(request.taskId);
-		entry.restartRequest = {
-			kind: "task",
-			request: cloneStartTaskSessionRequest(request),
-		};
+		if (request.oneShotGitAction) {
+			entry.suppressAutoRestartOnExit = true;
+		} else {
+			entry.restartRequest = {
+				kind: "task",
+				request: cloneStartTaskSessionRequest(request),
+			};
+		}
 		if (entry.active && isActiveState(entry.summary.state)) {
 			return cloneSummary(entry.summary);
 		}

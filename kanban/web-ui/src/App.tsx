@@ -342,6 +342,11 @@ export default function App(): ReactElement {
 		resetTaskEditorState();
 	}, [isProjectSwitching, resetTaskEditorState]);
 
+	const reviewGitActionHoldTaskIdsRef = useRef(new Set<string>());
+	const registerReviewGitActionHold = useCallback((taskId: string) => {
+		reviewGitActionHoldTaskIdsRef.current.add(taskId);
+	}, []);
+
 	const {
 		runningGitAction,
 		taskGitActionLoadingByTaskId,
@@ -373,6 +378,7 @@ export default function App(): ReactElement {
 		fetchTaskWorkspaceInfo,
 		isGitHistoryOpen,
 		refreshWorkspaceState,
+		registerReviewGitActionHold,
 	});
 	const agentCommand = runtimeProjectConfig?.effectiveCommand ?? null;
 	const {
@@ -595,6 +601,7 @@ export default function App(): ReactElement {
 		readyForReviewNotificationsEnabled,
 		taskGitActionLoadingByTaskId,
 		runAutoReviewGitAction,
+		reviewGitActionHoldTaskIdsRef,
 	});
 
 	const {

@@ -146,6 +146,7 @@ function HookHarness({
 		fetchTaskWorkspaceInfo: async () => createWorkspaceInfo(),
 		isGitHistoryOpen: false,
 		refreshWorkspaceState: async () => {},
+		registerReviewGitActionHold: () => {},
 	});
 
 	useEffect(() => {

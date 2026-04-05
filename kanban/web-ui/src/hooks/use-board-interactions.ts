@@ -1,5 +1,5 @@
 import type { DropResult } from "@hello-pangea/dnd";
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { notifyError, showAppToast } from "@/components/app-toaster";
 import type { TaskGitAction } from "@/git-actions/build-task-git-action-prompt";
@@ -69,6 +69,7 @@ interface UseBoardInteractionsInput {
 	readyForReviewNotificationsEnabled: boolean;
 	taskGitActionLoadingByTaskId: Record<string, TaskGitActionLoadingStateLike>;
 	runAutoReviewGitAction: (taskId: string, action: TaskGitAction) => Promise<boolean>;
+	reviewGitActionHoldTaskIdsRef: MutableRefObject<Set<string>>;
 }
 
 export interface UseBoardInteractionsResult {
@@ -113,6 +114,7 @@ export function useBoardInteractions({
 	readyForReviewNotificationsEnabled,
 	taskGitActionLoadingByTaskId,
 	runAutoReviewGitAction,
+	reviewGitActionHoldTaskIdsRef,
 }: UseBoardInteractionsInput): UseBoardInteractionsResult {
 	const previousSessionsRef = useRef<Record<string, RuntimeTaskSessionSummary>>({});
 	const notificationPermissionPromptInFlightRef = useRef(false);
@@ -452,6 +454,9 @@ export function useBoardInteractions({
 					continue;
 				}
 				if (summary.state === "running" && columnId === "review") {
+					if (reviewGitActionHoldTaskIdsRef.current.has(summary.taskId)) {
+						continue;
+					}
 					const programmaticMoveAttempt = tryProgrammaticCardMove(summary.taskId, columnId, "in_progress", {
 						skipKickoff: true,
 					});
@@ -463,6 +468,9 @@ export function useBoardInteractions({
 						nextBoard = moved.board;
 					}
 					continue;
+				}
+				if (summary.state !== "running" && reviewGitActionHoldTaskIdsRef.current.has(summary.taskId)) {
+					reviewGitActionHoldTaskIdsRef.current.delete(summary.taskId);
 				}
 				if (
 					summary.state === "interrupted" &&

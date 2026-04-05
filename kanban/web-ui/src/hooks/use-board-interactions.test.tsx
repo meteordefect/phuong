@@ -1,4 +1,4 @@
-import { act, type Dispatch, type SetStateAction, useEffect, useState } from "react";
+import { act, type Dispatch, type SetStateAction, useEffect, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -103,6 +103,8 @@ function HookHarness({
 	const [, setIsClearTrashDialogOpen] = useState(false);
 	const [, setIsGitHistoryOpen] = useState(false);
 
+	const reviewGitActionHoldTaskIdsRef = useRef(new Set<string>());
+
 	const actions = useBoardInteractions({
 		board,
 		setBoard,
@@ -123,6 +125,7 @@ function HookHarness({
 		readyForReviewNotificationsEnabled: false,
 		taskGitActionLoadingByTaskId: {},
 		runAutoReviewGitAction: NOOP_RUN_AUTO_REVIEW,
+		reviewGitActionHoldTaskIdsRef,
 	});
 
 	useEffect(() => {

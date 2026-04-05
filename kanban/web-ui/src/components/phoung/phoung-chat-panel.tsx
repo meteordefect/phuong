@@ -169,8 +169,8 @@ export function PhoungChatPanel({ workspaceId }: PhoungChatPanelProps) {
 	}
 
 	return (
-		<div className="flex h-full flex-col">
-			<div className="flex-1 overflow-y-auto px-2 py-2 space-y-3">
+		<div className="flex h-full min-w-0 flex-col">
+			<div className="flex-1 min-w-0 overflow-y-auto px-2 py-2 space-y-3">
 				{messages.length === 0 && (
 					<div className="flex h-full items-center justify-center text-center text-xs text-text-tertiary px-4">
 						Ask Phoung to plan work, break down features, or manage your board.
@@ -240,10 +240,10 @@ function MessageBubble({ message }: { message: PhoungMessage }) {
 					{message.toolCalls.map((tc, i) => (
 						<div
 							key={i}
-							className="flex items-center gap-1.5 rounded border border-border bg-surface-1 px-2 py-1 text-xs text-text-secondary"
+							className="flex min-w-0 items-center gap-1.5 rounded border border-border bg-surface-1 px-2 py-1 text-xs text-text-secondary"
 						>
 							<Wrench size={12} className="flex-shrink-0" />
-							<span className="font-medium">{tc.name}</span>
+							<span className="flex-shrink-0 font-medium">{tc.name}</span>
 							{tc.result && (
 								<span className={cn("truncate", tc.isError ? "text-status-red" : "text-status-green")}>
 									{tc.result.slice(0, 80)}
@@ -255,7 +255,7 @@ function MessageBubble({ message }: { message: PhoungMessage }) {
 				</div>
 			)}
 			{message.content && (
-				<div className="text-sm text-text-primary whitespace-pre-wrap">{message.content}</div>
+				<div className="text-sm text-text-primary whitespace-pre-wrap break-words">{message.content}</div>
 			)}
 		</div>
 	);
