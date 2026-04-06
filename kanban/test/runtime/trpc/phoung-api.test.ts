@@ -23,6 +23,22 @@ vi.mock("../../../src/state/workspace-state.js", () => ({
 	mutateWorkspaceState: workspaceStateMocks.mutateWorkspaceState,
 }));
 
+vi.mock("../../../src/manager/phoung-session.js", () => ({
+	getAvailableModels: () => [],
+	getSessionStats: () => null,
+	getActiveTurn: () => null,
+}));
+
+vi.mock("../../../src/manager/session-history.js", () => ({
+	listSessions: () => [],
+	loadSession: () => null,
+}));
+
+vi.mock("/workspace/kanban/src/memory/memory-service.js", () => ({
+	isMemoryConfigured: () => false,
+	getMemoryDir: () => "/tmp",
+}));
+
 function createBoard() {
 	return {
 		columns: [

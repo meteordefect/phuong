@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectPreferredPhoungModel } from "../../src/manager/phoung-session.js";
+import { selectPreferredPhoungModel } from "../../src/manager/phoung-model-selection.js";
 
 describe("selectPreferredPhoungModel", () => {
 	it("honors an explicit DEFAULT_MODEL match", () => {

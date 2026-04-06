@@ -13,6 +13,11 @@ import { isMemoryConfigured, getMemoryDir } from "../memory/memory-service.js";
 import { assemblePhoungSystemPrompt, assemblePhoungContext } from "./phoung-context.js";
 import { createPhoungTools, type BoardOperations } from "./phoung-tools.js";
 import { scrubCredentials, scrubSessionFile } from "./credential-scrubber.js";
+import {
+	normalizeModelKey,
+	resolveModelByInput,
+	selectPreferredPhoungModel,
+} from "./phoung-model-selection.js";
 
 export interface PhoungStreamEvent {
 	type: string;
@@ -22,100 +27,6 @@ export interface PhoungStreamEvent {
 export type PhoungStreamCallback = (event: PhoungStreamEvent) => void;
 
 const activeSessions = new Map<string, AgentSession>();
-
-interface AgentModel {
-	id: string;
-	provider: string;
-	name?: string;
-}
-
-function normalizeModelKey(model: Pick<AgentModel, "provider" | "id">): string {
-	return `${model.provider}/${model.id}`.toLowerCase();
-}
-
-function resolveModelByInput(available: AgentModel[], value: string): AgentModel | null {
-	const normalized = value.trim().toLowerCase();
-	if (!normalized) {
-		return null;
-	}
-
-	const exactComposite = available.find((model) => normalizeModelKey(model) === normalized);
-	if (exactComposite) {
-		return exactComposite;
-	}
-
-	const exactId = available.find((model) => model.id.toLowerCase() === normalized);
-	if (exactId) {
-		return exactId;
-	}
-
-	return (
-		available.find(
-			(model) =>
-				model.id.toLowerCase().includes(normalized) || normalizeModelKey(model).includes(normalized),
-		) ?? null
-	);
-}
-
-const HIGH_PRIORITY_MODEL_PATTERNS = [
-	/claude[-_]?opus/i,
-	/claude[-_]?sonnet[-_]?4/i,
-	/gpt[-_]?5/i,
-	/\bo3\b/i,
-	/gemini[-_]?2\.5[-_]?pro/i,
-	/deepseek[-_]?r1/i,
-];
-
-const LOW_PRIORITY_MODEL_PATTERNS = [
-	/haiku/i,
-	/mini/i,
-	/nano/i,
-	/flash[-_]?lite/i,
-	/\blite\b/i,
-	/small/i,
-];
-
-function scoreModelQuality(model: AgentModel): number {
-	const key = `${model.provider}/${model.id}/${model.name ?? ""}`;
-	let score = 0;
-
-	for (const pattern of HIGH_PRIORITY_MODEL_PATTERNS) {
-		if (pattern.test(key)) {
-			score += 50;
-		}
-	}
-
-	for (const pattern of LOW_PRIORITY_MODEL_PATTERNS) {
-		if (pattern.test(key)) {
-			score -= 25;
-		}
-	}
-
-	return score;
-}
-
-export function selectPreferredPhoungModel(
-	availableModels: AgentModel[],
-	defaultModelEnvValue: string,
-): AgentModel | null {
-	if (availableModels.length === 0) {
-		return null;
-	}
-
-	const fromEnv = resolveModelByInput(availableModels, defaultModelEnvValue);
-	if (fromEnv) {
-		return fromEnv;
-	}
-
-	const ranked = [...availableModels].sort((left, right) => {
-		const scoreDiff = scoreModelQuality(right) - scoreModelQuality(left);
-		if (scoreDiff !== 0) {
-			return scoreDiff;
-		}
-		return normalizeModelKey(left).localeCompare(normalizeModelKey(right));
-	});
-	return ranked[0] ?? null;
-}
 
 function setupAuth(): AuthStorage {
 	const auth = AuthStorage.create();
@@ -170,8 +81,8 @@ async function createPhoungSession(
 
 	const customTools = createPhoungTools(boardOps);
 	const modelRegistry = ModelRegistry.create(authStorage);
-	const availableModels = modelRegistry.getAvailable() as AgentModel[];
-	const model = selectPreferredPhoungModel(availableModels, process.env.DEFAULT_MODEL || "");
+	const availableModels = modelRegistry.getAvailable();
+	const model = selectPreferredPhoungModel(availableModels, process.env.DEFAULT_MODEL || "") ?? undefined;
 
 	const sessionManager = resumeSessionPath
 		? SessionManager.open(resumeSessionPath, sessionDir)
@@ -302,7 +213,7 @@ export async function phoungChatStream(
 
 	if (model) {
 		const registry = ModelRegistry.create(setupAuth());
-		const available = registry.getAvailable() as AgentModel[];
+		const available = registry.getAvailable();
 		const match = resolveModelByInput(available, model);
 		if (match) {
 			await session.setModel(match);
@@ -357,12 +268,12 @@ export function disposeSession(conversationId: string): void {
 export function getAvailableModels(): { id: string; label: string; isDefault: boolean }[] {
 	const authStorage = setupAuth();
 	const modelRegistry = ModelRegistry.create(authStorage);
-	const available = modelRegistry.getAvailable() as AgentModel[];
+	const available = modelRegistry.getAvailable();
 	const defaultModel = process.env.DEFAULT_MODEL || "";
 	const preferredModel = selectPreferredPhoungModel(available, defaultModel);
 	const preferredModelKey = preferredModel ? normalizeModelKey(preferredModel) : "";
 
-	return available.map((m: { id: string; provider: string }) => ({
+	return available.map((m) => ({
 		id: `${m.provider}/${m.id}`,
 		label: `${m.provider}/${m.id}`,
 		isDefault:
