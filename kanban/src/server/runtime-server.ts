@@ -22,8 +22,8 @@ import { createTerminalWebSocketBridge } from "../terminal/ws-server.js";
 import { type RuntimeTrpcContext, type RuntimeTrpcWorkspaceScope, runtimeAppRouter } from "../trpc/app-router.js";
 import { createHooksApi } from "../trpc/hooks-api.js";
 import { createMemoryApi } from "../trpc/memory-api.js";
-import { createBoardOperations, createPhoungApi } from "../trpc/phoung-api.js";
-import { phoungChatStream } from "../manager/phoung-session.js";
+import { createBoardOperations, createPhuongApi } from "../trpc/phuong-api.js";
+import { phuongChatStream } from "../manager/phuong-session.js";
 import { createProjectsApi } from "../trpc/projects-api.js";
 import { createRuntimeApi } from "../trpc/runtime-api.js";
 import { createWorkspaceApi } from "../trpc/workspace-api.js";
@@ -166,7 +166,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 	};
 
 	const memoryApi = createMemoryApi();
-	const phoungApi = createPhoungApi();
+	const phuongApi = createPhuongApi();
 
 	const createTrpcContext = async (req: IncomingMessage): Promise<RuntimeTrpcContext> => {
 		const requestUrl = new URL(req.url ?? "/", "http://localhost");
@@ -223,7 +223,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				broadcastTaskReadyForReview: deps.runtimeStateHub.broadcastTaskReadyForReview,
 			}),
 			memoryApi,
-			phoungApi,
+			phuongApi,
 		};
 	};
 
@@ -254,7 +254,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					return;
 				}
 			}
-			if (pathname === "/api/phoung/chat" && req.method === "POST") {
+			if (pathname === "/api/phuong/chat" && req.method === "POST") {
 				const chunks: Buffer[] = [];
 				for await (const chunk of req) {
 					chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
@@ -292,7 +292,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					res.write(`data: ${JSON.stringify(event)}\n\n`);
 				};
 				try {
-					await phoungChatStream(message, convId, boardOps, send, model, resume_session_path);
+					await phuongChatStream(message, convId, boardOps, send, model, resume_session_path);
 					send({ type: "done", conversation_id: convId });
 				} catch (err) {
 					send({ type: "error", message: err instanceof Error ? err.message : String(err) });

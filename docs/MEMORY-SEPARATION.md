@@ -27,7 +27,7 @@ base-control/
 │   ├── qa/SKILL.md
 │   └── ship/SKILL.md
 ├── projects/
-│   └── phoung/
+│   └── phuong/
 │       ├── context.md
 │       ├── memories/
 │       ├── conversations/
@@ -83,20 +83,20 @@ git push -u origin main
 
 ```bash
 # Clone to a permanent location outside clawdeploy
-git clone git@github.com:meteordefect/base-control.git /data/phoung-memory
+git clone git@github.com:meteordefect/base-control.git /data/phuong-memory
 ```
 
 ### Step 3: Update clawdeploy config
 
 In `.env`:
 ```
-MEMORY_DIR=/data/phoung-memory
+MEMORY_DIR=/data/phuong-memory
 ```
 
 In `docker-compose.yml`, update the volume mount for the API container:
 ```yaml
 volumes:
-  - /data/phoung-memory:/app/memory
+  - /data/phuong-memory:/app/memory
 ```
 
 ### Step 4: Restart containers
@@ -128,8 +128,8 @@ git push
 On the VPS:
 
 ```bash
-# /etc/cron.d/phoung-memory-backup
-0 * * * * cd /data/phoung-memory && git add -A && git diff --cached --quiet || git commit -m "auto: $(date -u +\%Y-\%m-\%dT\%H:\%M)" && git push
+# /etc/cron.d/phuong-memory-backup
+0 * * * * cd /data/phuong-memory && git add -A && git diff --cached --quiet || git commit -m "auto: $(date -u +\%Y-\%m-\%dT\%H:\%M)" && git push
 ```
 
 This runs hourly, only commits when there are actual changes.

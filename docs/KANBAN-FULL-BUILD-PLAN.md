@@ -531,7 +531,7 @@ Deliverables:
 
 Current code likely worth mining:
 
-- `main-agent/src/phoung.ts`
+- `main-agent/src/phuong.ts`
 - `main-agent/src/server.ts`
 - `main-agent/src/memory.ts`
 
@@ -556,7 +556,7 @@ Current source material:
 - `docs/MEMORY-SEPARATION.md`
 - `main-agent/src/memory.ts`
 
-> Done — `kanban/src/memory/` created with `memory-service.ts`, `memory-loader.ts`, `memory-sync.ts`. tRPC memory sub-router added. Ansible deploys clone `meteordefect/base-control` to `/data/phoung-memory` with hourly cron backup. VPS deploy activates it.
+> Done — `kanban/src/memory/` created with `memory-service.ts`, `memory-loader.ts`, `memory-sync.ts`. tRPC memory sub-router added. Ansible deploys clone `meteordefect/base-control` to `/data/phuong-memory` with hourly cron backup. VPS deploy activates it.
 
 ## Track E: Add `pi` worker runtime ✅ (initial integration)
 

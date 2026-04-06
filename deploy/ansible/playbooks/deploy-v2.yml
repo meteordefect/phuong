@@ -49,14 +49,14 @@
 
     - name: Ensure deploy directory exists
       file:
-        path: /opt/phoung
+        path: /opt/phuong
         state: directory
         mode: '0755'
 
     - name: Sync project files from repo root
       synchronize:
         src: "{{ playbook_dir }}/../../../"
-        dest: /opt/phoung/
+        dest: /opt/phuong/
         rsync_opts:
           - "--exclude=.git"
           - "--exclude=node_modules"
@@ -78,7 +78,7 @@
 
     - name: Generate environment file with required variables
       copy:
-        dest: /opt/phoung/.env
+        dest: /opt/phuong/.env
         content: |
           # Kimi For Coding (pi-mono provider: kimi-coding)
           KIMI_API_KEY={{ lookup('env', 'KIMI_API_KEY') | default(lookup('env', 'MOONSHOT_API_KEY'), true) | default('', true) }}
@@ -97,7 +97,7 @@
 
           # Sub-agent
           SUBAGENT_MODEL={{ lookup('env', 'SUBAGENT_MODEL') | default('zai/glm-4', true) }}
-          SUBAGENT_IMAGE=phoung/subagent:latest
+          SUBAGENT_IMAGE=phuong/subagent:latest
           SUBAGENT_MEMORY_LIMIT=2g
           SUBAGENT_CPUS=2
           MAX_CONCURRENT_SUBAGENTS=3
@@ -116,13 +116,13 @@
     - name: Stop old stack if running
       command: docker compose down --remove-orphans
       args:
-        chdir: /opt/phoung
+        chdir: /opt/phuong
       ignore_errors: yes
 
     - name: Stop any control-plane stack that may hold ports
       command: docker compose down --remove-orphans
       args:
-        chdir: /opt/phoung/deploy
+        chdir: /opt/phuong/deploy
       ignore_errors: yes
 
     - name: Kill any stale containers on ports used by v2 stack
@@ -138,12 +138,12 @@
     - name: Build and start v2 services
       command: docker compose up -d --build
       args:
-        chdir: /opt/phoung
+        chdir: /opt/phuong
 
     - name: Build sub-agent image
-      command: docker build -t phoung/subagent:latest ./subagent
+      command: docker build -t phuong/subagent:latest ./subagent
       args:
-        chdir: /opt/phoung
+        chdir: /opt/phuong
 
     - name: Install gVisor (runsc)
       shell: |
@@ -183,7 +183,7 @@
 
     - name: Ensure repos directory exists
       file:
-        path: /opt/phoung/repos
+        path: /opt/phuong/repos
         state: directory
         mode: '0755'
 
@@ -198,7 +198,7 @@
         name: "Phuong hourly: wake Phuong"
         minute: "0"
         hour: "*"
-        job: "curl -s -X POST http://127.0.0.1:8000/cron/wake >> /var/log/phoung-cron.log 2>&1"
+        job: "curl -s -X POST http://127.0.0.1:8000/cron/wake >> /var/log/phuong-cron.log 2>&1"
 
     - name: Remove old Python cron jobs if present
       cron:
@@ -211,7 +211,7 @@
     - name: Verify services are running
       command: docker compose ps
       args:
-        chdir: /opt/phoung
+        chdir: /opt/phuong
       register: docker_ps
 
     - name: Show service status

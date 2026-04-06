@@ -243,17 +243,17 @@ Key adaptation: the service reads from `MEMORY_DIR` env var pointing to the exte
 ### 5.2 Set up external memory repo on VPS
 
 ```
-git clone git@github.com:meteordefect/base-control.git /data/phoung-memory
+git clone git@github.com:meteordefect/base-control.git /data/phuong-memory
 ```
 
-Set `MEMORY_DIR=/data/phoung-memory` in the runtime env.
+Set `MEMORY_DIR=/data/phuong-memory` in the runtime env.
 
 ### 5.3 Add memory cron
 
 Hourly auto-commit and push:
 
 ```
-0 * * * * cd /data/phoung-memory && git add -A && git diff --cached --quiet || git commit -m "auto: $(date -u +\%Y-\%m-\%dT\%H:\%M)" && git push
+0 * * * * cd /data/phuong-memory && git add -A && git diff --cached --quiet || git commit -m "auto: $(date -u +\%Y-\%m-\%dT\%H:\%M)" && git push
 ```
 
 ### 5.4 Add memory tRPC procedures
@@ -270,7 +270,7 @@ Add a `memory` sub-router:
 
 ### 5.5 Verify
 
-- memory loads from `/data/phoung-memory` on VPS
+- memory loads from `/data/phuong-memory` on VPS
 - changes to memory files are committed hourly
 - tRPC procedures return correct data
 
@@ -278,7 +278,7 @@ Add a `memory` sub-router:
 
 External memory repo is live, readable by the app, auto-backed-up. Commit.
 
-> **Done** — Memory service implemented. `kanban/src/memory/` created with three modules: `memory-service.ts` (core read ops, frontmatter parsing via js-yaml), `memory-loader.ts` (selective context assembly), `memory-sync.ts` (git commit/push). tRPC `memory` sub-router added to `app-router.ts` with 7 procedures (loadOverview, loadProjectContext, listProjects, listMemories, loadMemory, getStatus, sync). `memory-api.ts` factory wired into `runtime-server.ts`. Ansible playbook updated to clone `meteordefect/base-control` to `/data/phoung-memory`, set `MEMORY_DIR` in env, and install hourly cron for auto-backup. VPS deploy pending.
+> **Done** — Memory service implemented. `kanban/src/memory/` created with three modules: `memory-service.ts` (core read ops, frontmatter parsing via js-yaml), `memory-loader.ts` (selective context assembly), `memory-sync.ts` (git commit/push). tRPC `memory` sub-router added to `app-router.ts` with 7 procedures (loadOverview, loadProjectContext, listProjects, listMemories, loadMemory, getStatus, sync). `memory-api.ts` factory wired into `runtime-server.ts`. Ansible playbook updated to clone `meteordefect/base-control` to `/data/phuong-memory`, set `MEMORY_DIR` in env, and install hourly cron for auto-backup. VPS deploy pending.
 
 ---
 
@@ -288,11 +288,11 @@ External memory repo is live, readable by the app, auto-backed-up. Commit.
 
 File: `kanban/src/manager/` (new directory)
 
-Port from `archive/v1/main-agent/src/phoung.ts`:
+Port from `archive/v1/main-agent/src/phuong.ts`:
 
-- `phoung-session.ts` — pi-coding-agent SDK session, streaming, model selection
-- `phoung-tools.ts` — custom tools (create task on board, update task, load memory, create memory)
-- `phoung-context.ts` — selective context assembly (system prompt + overview + relevant project context + relevant memories)
+- `phuong-session.ts` — pi-coding-agent SDK session, streaming, model selection
+- `phuong-tools.ts` — custom tools (create task on board, update task, load memory, create memory)
+- `phuong-context.ts` — selective context assembly (system prompt + overview + relevant project context + relevant memories)
 
 Key adaptation: Phuong's tools now operate on the Kanban board (via workspace state save API) instead of the old file-based task system.
 
@@ -300,14 +300,14 @@ Key adaptation: Phuong's tools now operate on the Kanban board (via workspace st
 
 File: `kanban/src/trpc/app-router.ts`
 
-Add a `phoung` sub-router:
+Add a `phuong` sub-router:
 
-- `phoung.chat` — mutation, accepts message + conversationId, returns SSE stream
-- `phoung.listConversations` — query
-- `phoung.loadConversation` — query
-- `phoung.newConversation` — mutation
-- `phoung.getModels` — query
-- `phoung.getSessionStats` — query
+- `phuong.chat` — mutation, accepts message + conversationId, returns SSE stream
+- `phuong.listConversations` — query
+- `phuong.loadConversation` — query
+- `phuong.newConversation` — mutation
+- `phuong.getModels` — query
+- `phuong.getSessionStats` — query
 
 ### 6.3 Add Phuong chat panel to the UI
 
@@ -373,12 +373,12 @@ Subscribe to Kanban workspace state changes. When a task transitions state, writ
 
 ### 7.3 Wire to Phuong
 
-Phuong should read recent task outcomes when planning new work. Add task history to the context assembly in `phoung-context.ts`.
+Phuong should read recent task outcomes when planning new work. Add task history to the context assembly in `phuong-context.ts`.
 
 ### 7.4 Verify
 
 - complete a task through the full cycle
-- check `/data/phoung-memory/projects/<project>/tasks/` for the written record
+- check `/data/phuong-memory/projects/<project>/tasks/` for the written record
 - verify Phuong can reference past task outcomes in conversation
 
 ### 7.5 Checkpoint
@@ -436,7 +436,7 @@ clawdeploy/
 │   │   ├── core/              # agent catalog (with pi), api contract
 │   │   ├── server/            # runtime server (with Clerk auth)
 │   │   ├── terminal/          # agent adapters (with pi adapter)
-│   │   ├── trpc/              # app router (with phoung + memory sub-routers)
+│   │   ├── trpc/              # app router (with phuong + memory sub-routers)
 │   │   ├── manager/           # NEW: Phuong session, tools, context
 │   │   ├── memory/            # NEW: memory service, loader, sync
 │   │   └── ...                # upstream Kanban modules
@@ -467,7 +467,7 @@ clawdeploy/
 ## External (on VPS, not in this repo)
 
 ```
-/data/phoung-memory/           # base-control git repo clone
+/data/phuong-memory/           # base-control git repo clone
 ├── system-prompt.md
 ├── overview.md
 ├── projects/

@@ -2,8 +2,8 @@
 # Phuong v3 Ansible Variables
 
 # Project settings
-project_name: phoung
-project_dir: /opt/phoung
+project_name: phuong
+project_dir: /opt/phuong
 compose_file: "{{ project_dir }}/docker-compose.yml"
 env_file: "{{ project_dir }}/.env"
 

@@ -15,7 +15,7 @@ export interface BoardOperations {
 	startTask: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
-export function createPhoungTools(boardOps: BoardOperations): ToolDefinition[] {
+export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 	const createTaskTool: ToolDefinition = {
 		name: "create_task",
 		label: "Create Task",

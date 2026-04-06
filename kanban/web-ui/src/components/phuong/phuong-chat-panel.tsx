@@ -4,13 +4,13 @@ import { cn } from "@/components/ui/cn";
 import { getSessionToken } from "@/auth/session-token-store";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 
-interface PhoungMessage {
+interface PhuongMessage {
 	role: "user" | "assistant" | "status" | "error";
 	content: string;
 	toolCalls?: { name: string; result?: string; isError?: boolean }[];
 }
 
-interface PhoungModel {
+interface PhuongModel {
 	id: string;
 	label: string;
 	isDefault: boolean;
@@ -33,18 +33,18 @@ interface LoadedSession {
 	messages: { role: "user" | "assistant"; content: string }[];
 }
 
-interface PhoungChatPanelProps {
+interface PhuongChatPanelProps {
 	workspaceId: string | null;
 }
 
 type ViewMode = "chat" | "history" | "viewing-session";
 
-export function PhoungChatPanel({ workspaceId }: PhoungChatPanelProps) {
-	const [messages, setMessages] = useState<PhoungMessage[]>([]);
+export function PhuongChatPanel({ workspaceId }: PhuongChatPanelProps) {
+	const [messages, setMessages] = useState<PhuongMessage[]>([]);
 	const [input, setInput] = useState("");
 	const [isStreaming, setIsStreaming] = useState(false);
 	const [conversationId, setConversationId] = useState<string | null>(null);
-	const [availableModels, setAvailableModels] = useState<PhoungModel[]>([]);
+	const [availableModels, setAvailableModels] = useState<PhuongModel[]>([]);
 	const [selectedModel, setSelectedModel] = useState<string | null>(null);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -60,9 +60,9 @@ export function PhoungChatPanel({ workspaceId }: PhoungChatPanelProps) {
 	useEffect(() => {
 		if (!workspaceId) return;
 		const trpcClient = getRuntimeTrpcClient(workspaceId);
-		trpcClient.phoung.getModels
+		trpcClient.phuong.getModels
 			.query()
-			.then((models: PhoungModel[]) => {
+			.then((models: PhuongModel[]) => {
 				setAvailableModels(models);
 				const defaultModel = models.find((m) => m.isDefault) || models[0];
 				if (defaultModel) {
@@ -81,7 +81,7 @@ export function PhoungChatPanel({ workspaceId }: PhoungChatPanelProps) {
 		setSessionsLoading(true);
 		try {
 			const trpcClient = getRuntimeTrpcClient(workspaceId);
-			const result = await trpcClient.phoung.listSessions.query();
+			const result = await trpcClient.phuong.listSessions.query();
 			setSessions(result as SessionListItem[]);
 		} catch {
 			setSessions([]);
@@ -96,7 +96,7 @@ export function PhoungChatPanel({ workspaceId }: PhoungChatPanelProps) {
 			setSessionLoading(true);
 			try {
 				const trpcClient = getRuntimeTrpcClient(workspaceId);
-				const result = await trpcClient.phoung.loadSession.query({ sessionId: sessionItem.id });
+				const result = await trpcClient.phuong.loadSession.query({ sessionId: sessionItem.id });
 				if (result) {
 					setViewedSession(result as LoadedSession);
 					setViewedSessionPath(sessionItem.path);
@@ -113,7 +113,7 @@ export function PhoungChatPanel({ workspaceId }: PhoungChatPanelProps) {
 
 	const resumeSession = useCallback(() => {
 		if (!viewedSession || !viewedSessionPath) return;
-		const resumeMessages: PhoungMessage[] = viewedSession.messages.map((m) => ({
+		const resumeMessages: PhuongMessage[] = viewedSession.messages.map((m) => ({
 			role: m.role,
 			content: m.content,
 		}));
@@ -131,13 +131,13 @@ export function PhoungChatPanel({ workspaceId }: PhoungChatPanelProps) {
 		setInput("");
 		setIsStreaming(true);
 
-		const userMsg: PhoungMessage = { role: "user", content: text };
+		const userMsg: PhuongMessage = { role: "user", content: text };
 		setMessages((prev) => [...prev, userMsg]);
 
 		const convId = conversationId || `conv-${Date.now()}`;
 		if (!conversationId) setConversationId(convId);
 
-		const assistantMsg: PhoungMessage = { role: "assistant", content: "", toolCalls: [] };
+		const assistantMsg: PhuongMessage = { role: "assistant", content: "", toolCalls: [] };
 		setMessages((prev) => [...prev, assistantMsg]);
 
 		const controller = new AbortController();
@@ -158,7 +158,7 @@ export function PhoungChatPanel({ workspaceId }: PhoungChatPanelProps) {
 			if (isResume) {
 				bodyObj.resume_session_path = viewedSessionPath;
 			}
-			const res = await fetch("/api/phoung/chat", {
+			const res = await fetch("/api/phuong/chat", {
 				method: "POST",
 				headers,
 				body: JSON.stringify(bodyObj),
@@ -201,7 +201,7 @@ export function PhoungChatPanel({ workspaceId }: PhoungChatPanelProps) {
 						setMessages((prev) => {
 							const updated = [...prev];
 							const lastMsg = updated[updated.length - 1]!;
-							const last: PhoungMessage = {
+							const last: PhuongMessage = {
 								role: lastMsg.role,
 								content: lastMsg.content,
 								toolCalls: lastMsg.toolCalls ? [...lastMsg.toolCalls] : [],
@@ -489,7 +489,7 @@ function formatSessionDate(dateStr: string): string {
 	}
 }
 
-function MessageBubble({ message }: { message: PhoungMessage }) {
+function MessageBubble({ message }: { message: PhuongMessage }) {
 	if (message.role === "user") {
 		return (
 			<div className="flex justify-end">

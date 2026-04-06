@@ -230,14 +230,14 @@
     - name: Copy Nginx configuration
       template:
         src: ../templates/nginx.conf.j2
-        dest: /etc/nginx/sites-available/phoung
+        dest: /etc/nginx/sites-available/phuong
         mode: '0644'
       notify: Reload Nginx
 
     - name: Enable Nginx site
       file:
-        src: /etc/nginx/sites-available/phoung
-        dest: /etc/nginx/sites-enabled/phoung
+        src: /etc/nginx/sites-available/phuong
+        dest: /etc/nginx/sites-enabled/phuong
         state: link
       notify: Reload Nginx
 

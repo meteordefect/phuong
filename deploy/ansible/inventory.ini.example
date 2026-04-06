@@ -1,5 +1,5 @@
 [control_plane]
-phoung ansible_host=YOUR_SERVER_IP
+phuong ansible_host=YOUR_SERVER_IP
 
 [control_plane:vars]
 ansible_user=root

@@ -95,9 +95,9 @@ During spawn, Phuong can also inject relevant company-level context from `memory
 
 | Component | Description |
 |-----------|-------------|
-| `phoung-api` | Express API hosting chat, task operations, PR operations, logs, SSE stream, and cron trigger |
-| `phoung-ui` | React review dashboard for conversations, task status, and technical context |
-| `phoung-nginx` | Reverse proxy exposing a single entrypoint on port 8080 |
+| `phuong-api` | Express API hosting chat, task operations, PR operations, logs, SSE stream, and cron trigger |
+| `phuong-ui` | React review dashboard for conversations, task status, and technical context |
+| `phuong-nginx` | Reverse proxy exposing a single entrypoint on port 8080 |
 | `subagent` image | On-demand gVisor-sandboxed worker container that runs the pi coding agent CLI |
 
 ### Docker Compose Stack
@@ -119,7 +119,7 @@ All three services run on an internal bridge network. Nginx exposes port 8080.
 
 | Module | Purpose |
 |--------|---------|
-| `phoung.ts` | Session lifecycle, model routing (Kimi, ZAI, Anthropic), stream handling |
+| `phuong.ts` | Session lifecycle, model routing (Kimi, ZAI, Anthropic), stream handling |
 | `extension.ts` | Custom tool definitions exposed to Phuong |
 | `spawner.ts` | Docker/gVisor orchestration — worktree bind mount, post-exit push/PR, cleanup |
 | `repos.ts` | Local repo management — clone, pull, git worktrees, context injection |

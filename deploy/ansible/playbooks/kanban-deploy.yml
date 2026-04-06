@@ -10,7 +10,7 @@
     kanban_port: 3484
     node_major_version: 22
     memory_repo: git@github.com:meteordefect/base-control.git
-    memory_dir: /data/phoung-memory
+    memory_dir: /data/phuong-memory
 
   tasks:
     # --- Node.js ---
@@ -149,7 +149,7 @@
 
     - name: Remove old Phuong nginx site (if present)
       file:
-        path: /etc/nginx/sites-enabled/phoung
+        path: /etc/nginx/sites-enabled/phuong
         state: absent
       notify: Reload Nginx
 

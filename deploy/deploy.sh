@@ -187,7 +187,7 @@ cmd_config() {
 cmd_api() {
     log_info "Updating Control API only..."
     cd ansible
-    ansible control_plane -m shell -a "cd /opt/phoung && docker compose restart control-api"
+    ansible control_plane -m shell -a "cd /opt/phuong && docker compose restart control-api"
     cd ..
     log_success "Control API restarted"
 }
@@ -195,7 +195,7 @@ cmd_api() {
 cmd_dashboard() {
     log_info "Updating Dashboard only..."
     cd ansible
-    ansible control_plane -m shell -a "cd /opt/phoung && docker compose restart dashboard"
+    ansible control_plane -m shell -a "cd /opt/phuong && docker compose restart dashboard"
     cd ..
     log_success "Dashboard restarted"
 }
@@ -361,7 +361,7 @@ cmd_logs() {
     
     SERVER_IP=$(grep ansible_host ansible/inventory.ini | cut -d'=' -f2)
     log_info "Fetching logs from $SERVER_IP..."
-    ssh -i "$SSH_KEY" root@$SERVER_IP "cd /opt/phoung && docker compose logs -f --tail=100"
+    ssh -i "$SSH_KEY" root@$SERVER_IP "cd /opt/phuong && docker compose logs -f --tail=100"
 }
 
 cmd_build_openclaw() {
@@ -446,7 +446,7 @@ cmd_agent_bridge_remote_logs() {
     
     SERVER_IP=$(grep ansible_host ansible/inventory.ini | cut -d'=' -f2)
     log_info "Fetching agent bridge logs from $SERVER_IP..."
-    ssh -i "$SSH_KEY" root@$SERVER_IP "cd /opt/phoung && docker compose logs -f agent-bridge"
+    ssh -i "$SSH_KEY" root@$SERVER_IP "cd /opt/phuong && docker compose logs -f agent-bridge"
 }
 
 cmd_agent_bridge_remote_status() {
@@ -457,7 +457,7 @@ cmd_agent_bridge_remote_status() {
     
     SERVER_IP=$(grep ansible_host ansible/inventory.ini | cut -d'=' -f2)
     log_info "Checking agent bridge status on $SERVER_IP..."
-    ssh -i "$SSH_KEY" root@$SERVER_IP "cd /opt/phoung && docker compose ps agent-bridge"
+    ssh -i "$SSH_KEY" root@$SERVER_IP "cd /opt/phuong && docker compose ps agent-bridge"
 }
 
 cmd_list_agents() {

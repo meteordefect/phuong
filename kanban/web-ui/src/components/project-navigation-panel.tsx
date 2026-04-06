@@ -74,13 +74,13 @@ export function ProjectNavigationPanel({
 	const COLLAPSE_THRESHOLD = 120;
 	const MIN_EXPANDED = 180;
 	const MAX_WIDTH = 400;
-	const EXPANDED_PHOUNG_WIDTH = 600;
-	const [isPhoungExpanded, setIsPhoungExpanded] = useState(false);
-	const isAgentExpanded = isPhoungExpanded && activeSection === "agent";
+	const EXPANDED_PHUONG_WIDTH = 600;
+	const [isPhuongExpanded, setIsPhuongExpanded] = useState(false);
+	const isAgentExpanded = isPhuongExpanded && activeSection === "agent";
 	const startDrag = useCallback((e: ReactMouseEvent) => {
 		e.preventDefault();
-		if (isPhoungExpanded) {
-			setIsPhoungExpanded(false);
+		if (isPhuongExpanded) {
+			setIsPhuongExpanded(false);
 			setSidebarWidth(MAX_WIDTH);
 			dragRef.current = { startX: e.clientX, startWidth: MAX_WIDTH };
 		} else {
@@ -89,7 +89,7 @@ export function ProjectNavigationPanel({
 		setIsDragging(true);
 		document.body.style.userSelect = "none";
 		document.body.style.cursor = "ew-resize";
-	}, [sidebarWidth, isCollapsed, isPhoungExpanded]);
+	}, [sidebarWidth, isCollapsed, isPhuongExpanded]);
 	useEffect(() => {
 		if (!isDragging) return;
 		const onMouseMove = (e: MouseEvent) => {
@@ -116,7 +116,7 @@ export function ProjectNavigationPanel({
 
 	useEffect(() => {
 		if (activeSection !== "agent") {
-			setIsPhoungExpanded(false);
+			setIsPhuongExpanded(false);
 		}
 	}, [activeSection]);
 
@@ -166,9 +166,9 @@ export function ProjectNavigationPanel({
 		<aside
 			className="flex flex-col min-h-0 overflow-hidden bg-surface-1 relative shrink-0"
 			style={{
-				width: isAgentExpanded ? EXPANDED_PHOUNG_WIDTH : sidebarWidth,
+				width: isAgentExpanded ? EXPANDED_PHUONG_WIDTH : sidebarWidth,
 				minWidth: MIN_EXPANDED,
-				maxWidth: isAgentExpanded ? EXPANDED_PHOUNG_WIDTH : MAX_WIDTH,
+				maxWidth: isAgentExpanded ? EXPANDED_PHUONG_WIDTH : MAX_WIDTH,
 				borderRight: "1px solid var(--color-divider)",
 				transition: isDragging ? undefined : "width 200ms ease, max-width 200ms ease",
 			}}
@@ -220,9 +220,9 @@ export function ProjectNavigationPanel({
 						<Button
 							variant="ghost"
 							size="sm"
-							icon={isPhoungExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-							onClick={() => setIsPhoungExpanded((prev) => !prev)}
-							aria-label={isPhoungExpanded ? "Collapse panel" : "Expand panel"}
+							icon={isPhuongExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+							onClick={() => setIsPhuongExpanded((prev) => !prev)}
+							aria-label={isPhuongExpanded ? "Collapse panel" : "Expand panel"}
 						/>
 					</div>
 				) : null}

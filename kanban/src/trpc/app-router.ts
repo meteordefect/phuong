@@ -5,7 +5,7 @@ import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
 import type { MemoryApi } from "./memory-api.js";
-import type { PhoungApi } from "./phoung-api.js";
+import type { PhuongApi } from "./phuong-api.js";
 
 import type {
 	RuntimeCommandRunRequest,
@@ -319,7 +319,7 @@ export interface RuntimeTrpcContext {
 		ingest: (input: RuntimeHookIngestRequest) => Promise<RuntimeHookIngestResponse>;
 	};
 	memoryApi: MemoryApi;
-	phoungApi: PhoungApi;
+	phuongApi: PhuongApi;
 }
 
 interface RuntimeTrpcContextWithWorkspaceScope extends RuntimeTrpcContext {
@@ -665,27 +665,27 @@ export const runtimeAppRouter = t.router({
 			return await ctx.memoryApi.sync();
 		}),
 	}),
-	phoung: t.router({
+	phuong: t.router({
 		getModels: t.procedure.query(async ({ ctx }) => {
-			return await ctx.phoungApi.getModels();
+			return await ctx.phuongApi.getModels();
 		}),
 		getSessionStats: t.procedure
 			.input(z.object({ conversationId: z.string() }))
 			.query(async ({ ctx, input }) => {
-				return await ctx.phoungApi.getSessionStats(input);
+				return await ctx.phuongApi.getSessionStats(input);
 			}),
 		getActiveTurn: t.procedure
 			.input(z.object({ conversationId: z.string() }))
 			.query(async ({ ctx, input }) => {
-				return await ctx.phoungApi.getActiveTurn(input);
+				return await ctx.phuongApi.getActiveTurn(input);
 			}),
 		listSessions: t.procedure.query(async ({ ctx }) => {
-			return await ctx.phoungApi.listSessions();
+			return await ctx.phuongApi.listSessions();
 		}),
 		loadSession: t.procedure
 			.input(z.object({ sessionId: z.string() }))
 			.query(async ({ ctx, input }) => {
-				return await ctx.phoungApi.loadSession(input);
+				return await ctx.phuongApi.loadSession(input);
 			}),
 	}),
 });

@@ -5,11 +5,11 @@
   
   tasks:
     - name: Check if Control API container is running
-      shell: docker ps --filter "name=phoung-control-api" --format "{% raw %}{{.Names}}{% endraw %}"
+      shell: docker ps --filter "name=phuong-control-api" --format "{% raw %}{{.Names}}{% endraw %}"
       register: container_check
 
     - name: Run migrations
-      shell: docker exec phoung-control-api node dist/db/migrate.js
+      shell: docker exec phuong-control-api node dist/db/migrate.js
       when: container_check.stdout != ""
       register: migration_result
 

@@ -5,7 +5,7 @@ import {
 	loadProjectContext,
 } from "../memory/memory-service.js";
 
-const PHOUNG_SYSTEM_PROMPT = `You are Phuong, a project manager agent for Kanban.
+const PHUONG_SYSTEM_PROMPT = `You are Phuong, a project manager agent for Kanban.
 
 Primary behavior:
 - Orchestrate work through the Kanban board, not by implementing code directly in this chat.
@@ -19,18 +19,18 @@ Execution rules:
 - If the user asks for planning only, create tasks but do not start them.
 - Respect manual board control: users can still create, edit, and move tasks themselves.`;
 
-export function assemblePhoungSystemPrompt(): string {
+export function assemblePhuongSystemPrompt(): string {
 	if (!isMemoryConfigured()) {
-		return PHOUNG_SYSTEM_PROMPT;
+		return PHUONG_SYSTEM_PROMPT;
 	}
 
 	const systemPrompt = loadSystemPrompt();
 	if (systemPrompt) return systemPrompt;
 
-	return PHOUNG_SYSTEM_PROMPT;
+	return PHUONG_SYSTEM_PROMPT;
 }
 
-export function assemblePhoungContext(): string {
+export function assemblePhuongContext(): string {
 	if (!isMemoryConfigured()) return "";
 
 	const overview = loadOverview();

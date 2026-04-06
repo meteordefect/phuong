@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
-import type { BoardOperations } from "../manager/phoung-tools.js";
-import { getAvailableModels, getSessionStats, getActiveTurn } from "../manager/phoung-session.js";
+import type { BoardOperations } from "../manager/phuong-tools.js";
+import { getAvailableModels, getSessionStats, getActiveTurn } from "../manager/phuong-session.js";
 import { listSessions, loadSession } from "../manager/session-history.js";
 import { moveTaskToColumn } from "../core/task-board-mutations.js";
 import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint.js";
@@ -160,7 +160,7 @@ export function createBoardOperations(
 	};
 }
 
-export function createPhoungApi() {
+export function createPhuongApi() {
 	return {
 		getModels: async () => {
 			try {
@@ -188,4 +188,4 @@ export function createPhoungApi() {
 	};
 }
 
-export type PhoungApi = ReturnType<typeof createPhoungApi>;
+export type PhuongApi = ReturnType<typeof createPhuongApi>;

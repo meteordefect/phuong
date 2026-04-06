@@ -37,7 +37,7 @@ function getSessionDir(): string {
 	if (isMemoryConfigured()) {
 		return join(getMemoryDir(), "sessions");
 	}
-	return join(process.env.HOME || "/tmp", ".phoung-sessions");
+	return join(process.env.HOME || "/tmp", ".phuong-sessions");
 }
 
 function isSessionHeader(entry: FileEntry): entry is SessionHeader {

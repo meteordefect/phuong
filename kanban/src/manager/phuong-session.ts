@@ -10,8 +10,8 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import { join, dirname } from "node:path";
 import { isMemoryConfigured, getMemoryDir } from "../memory/memory-service.js";
-import { assemblePhoungSystemPrompt, assemblePhoungContext } from "./phoung-context.js";
-import { createPhoungTools, type BoardOperations } from "./phoung-tools.js";
+import { assemblePhuongSystemPrompt, assemblePhuongContext } from "./phuong-context.js";
+import { createPhuongTools, type BoardOperations } from "./phuong-tools.js";
 import { scrubCredentials, scrubSessionFile } from "./credential-scrubber.js";
 import {
 	normalizeModelKey,
@@ -19,12 +19,12 @@ import {
 	selectPreferredPhoungModel,
 } from "./phoung-model-selection.js";
 
-export interface PhoungStreamEvent {
+export interface PhuongStreamEvent {
 	type: string;
 	[key: string]: unknown;
 }
 
-export type PhoungStreamCallback = (event: PhoungStreamEvent) => void;
+export type PhuongStreamCallback = (event: PhuongStreamEvent) => void;
 
 const activeSessions = new Map<string, AgentSession>();
 
@@ -43,16 +43,16 @@ function getSessionDir(): string {
 	if (isMemoryConfigured()) {
 		return join(getMemoryDir(), "sessions");
 	}
-	return join(process.env.HOME || "/tmp", ".phoung-sessions");
+	return join(process.env.HOME || "/tmp", ".phuong-sessions");
 }
 
-async function createPhoungSession(
+async function createPhuongSession(
 	conversationId: string,
 	boardOps: BoardOperations,
 	resumeSessionPath?: string,
 ): Promise<AgentSession> {
-	const systemPrompt = assemblePhoungSystemPrompt();
-	const contextText = assemblePhoungContext();
+	const systemPrompt = assemblePhuongSystemPrompt();
+	const contextText = assemblePhuongContext();
 
 	const authStorage = setupAuth();
 	const cwd = isMemoryConfigured() ? getMemoryDir() : process.cwd();
@@ -79,7 +79,7 @@ async function createPhoungSession(
 	const sessionDir = getSessionDir();
 	const appDir = isMemoryConfigured() ? dirname(getMemoryDir()) : process.cwd();
 
-	const customTools = createPhoungTools(boardOps);
+	const customTools = createPhuongTools(boardOps);
 	const modelRegistry = ModelRegistry.create(authStorage);
 	const availableModels = modelRegistry.getAvailable();
 	const model = selectPreferredPhoungModel(availableModels, process.env.DEFAULT_MODEL || "") ?? undefined;
@@ -88,7 +88,7 @@ async function createPhoungSession(
 		? SessionManager.open(resumeSessionPath, sessionDir)
 		: SessionManager.create(cwd, sessionDir);
 
-	console.error(`[phoung] ${resumeSessionPath ? "Resuming" : "Creating"} session. model=${model ? `${model.provider}/${model.id}` : "none"}, cwd=${appDir}`);
+	console.error(`[phuong] ${resumeSessionPath ? "Resuming" : "Creating"} session. model=${model ? `${model.provider}/${model.id}` : "none"}, cwd=${appDir}`);
 
 	const { session } = await createAgentSession({
 		cwd: appDir,
@@ -117,7 +117,7 @@ function formatToolResult(result: unknown): string {
 
 function mapSessionEvent(
 	event: AgentSessionEvent,
-	onEvent: PhoungStreamCallback,
+	onEvent: PhuongStreamCallback,
 	responseRef: { text: string },
 ): void {
 	switch (event.type) {
@@ -198,17 +198,17 @@ function mapSessionEvent(
 
 const activeTurns = new Map<string, { conversationId: string; startedAt: number }>();
 
-export async function phoungChatStream(
+export async function phuongChatStream(
 	userMessage: string,
 	conversationId: string,
 	boardOps: BoardOperations,
-	onEvent: PhoungStreamCallback,
+	onEvent: PhuongStreamCallback,
 	model?: string,
 	resumeSessionPath?: string,
 ): Promise<void> {
 	let session = activeSessions.get(conversationId);
 	if (!session) {
-		session = await createPhoungSession(conversationId, boardOps, resumeSessionPath);
+		session = await createPhuongSession(conversationId, boardOps, resumeSessionPath);
 	}
 
 	if (model) {
@@ -230,7 +230,7 @@ export async function phoungChatStream(
 	try {
 		await session.prompt(userMessage);
 	} catch (err) {
-		console.error("[phoung] session.prompt error:", err);
+		console.error("[phuong] session.prompt error:", err);
 		onEvent({ type: "error", message: err instanceof Error ? err.message : String(err) });
 	} finally {
 		unsubscribe();
@@ -240,12 +240,12 @@ export async function phoungChatStream(
 	const sessionFilePath = session.sessionFile;
 	if (sessionFilePath) {
 		scrubSessionFile(sessionFilePath).catch((err) => {
-			console.error("[phoung] Failed to scrub session file:", err);
+			console.error("[phuong] Failed to scrub session file:", err);
 		});
 	}
 
 	if (!responseRef.text.trim()) {
-		console.error("[phoung] No response text after prompt. Model may not be configured.");
+		console.error("[phuong] No response text after prompt. Model may not be configured.");
 		onEvent({
 			type: "error",
 			message: "Model returned no response. Check API key validity and model availability.",

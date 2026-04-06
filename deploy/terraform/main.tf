@@ -28,7 +28,7 @@ variable "use_existing_ssh_key" {
 variable "server_name" {
   description = "Name of the server"
   type        = string
-  default     = "phoung-control-plane"
+  default     = "phuong-control-plane"
 }
 
 variable "server_type" {
@@ -62,7 +62,7 @@ data "hcloud_ssh_key" "existing" {
 # Create new SSH key only if not using existing
 resource "hcloud_ssh_key" "default" {
   count      = local.use_new_key ? 1 : 0
-  name       = "phoung-key-${formatdate("YYYYMMDD-hhmm", timestamp())}"
+  name       = "phuong-key-${formatdate("YYYYMMDD-hhmm", timestamp())}"
   public_key = local.ssh_key_content
   
   lifecycle {
@@ -78,7 +78,7 @@ resource "hcloud_server" "control_plane" {
   ssh_keys    = local.use_new_key ? [hcloud_ssh_key.default[0].id] : [data.hcloud_ssh_key.existing[0].id]
 
   labels = {
-    project     = "phoung"
+    project     = "phuong"
     environment = "production"
     version     = "v3"
   }
@@ -90,7 +90,7 @@ resource "hcloud_server" "control_plane" {
 }
 
 resource "hcloud_firewall" "control_plane" {
-  name = "phoung-firewall"
+  name = "phuong-firewall"
 
   rule {
     direction = "in"

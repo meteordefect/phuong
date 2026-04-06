@@ -67,8 +67,8 @@ server {
         proxy_set_header Connection "upgrade";
     }
 
-    access_log /var/log/nginx/phoung-tunnel-access.log;
-    error_log /var/log/nginx/phoung-tunnel-error.log;
+    access_log /var/log/nginx/phuong-tunnel-access.log;
+    error_log /var/log/nginx/phuong-tunnel-error.log;
 }
 
 {% if domain %}
@@ -150,7 +150,7 @@ server {
         proxy_set_header Connection "upgrade";
     }
 
-    access_log /var/log/nginx/phoung-public-access.log;
-    error_log /var/log/nginx/phoung-public-error.log;
+    access_log /var/log/nginx/phuong-public-access.log;
+    error_log /var/log/nginx/phuong-public-error.log;
 }
 {% endif %}
