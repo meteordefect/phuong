@@ -7,6 +7,7 @@ import {
 	loadSpecificMemories,
 	loadProjectContext,
 } from "../memory/memory-service.js";
+import type { TaskAgentStatusReport } from "./task-status-protocol.js";
 
 export interface BoardOperations {
 	createCard: (prompt: string, baseRef?: string) => Promise<{ cardId: string }>;
@@ -17,6 +18,7 @@ export interface BoardOperations {
 		exitCode: number | null;
 		reviewReason: string | null;
 		lastActivity: string | null;
+		reportedStatus: TaskAgentStatusReport | null;
 	} | null>;
 }
 
@@ -94,7 +96,10 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 	const checkChatStatusTool: ToolDefinition = {
 		name: "check_chat_status",
 		label: "Check Chat Status",
-		description: "Check the current status of an agent chat session — whether it is running, completed, failed, or idle.",
+		description:
+			"Check the current status of an agent chat session — whether it is running, completed, failed, or idle. " +
+			"When the agent's last message includes a STATUS marker (DONE, DONE_WITH_CONCERNS, NEEDS_CONTEXT, BLOCKED), " +
+			"`Reported status` reflects it and is the authoritative signal for routing the next step.",
 		parameters: Type.Object({
 			chat_id: Type.String({ description: "The chat/task ID to check" }),
 		}),
@@ -116,6 +121,12 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 			}
 			if (summary.lastActivity) {
 				parts.push(`Last activity: ${summary.lastActivity}`);
+			}
+			if (summary.reportedStatus) {
+				const reasonSuffix = summary.reportedStatus.reason
+					? ` — ${summary.reportedStatus.reason}`
+					: "";
+				parts.push(`Reported status: ${summary.reportedStatus.status}${reasonSuffix}`);
 			}
 			return {
 				content: [{ type: "text" as const, text: parts.join("\n") }],

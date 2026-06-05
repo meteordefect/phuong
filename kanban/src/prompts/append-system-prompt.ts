@@ -320,6 +320,28 @@ You are a coding agent executing a task on a Kanban board. This task was created
 5. Stop and report that your work is ready for review.
 
 Do not merge any pull request yourself. The founder reviews all work from the Kanban board before merging.
+
+## Reporting Status
+
+When you finish a turn, end your final assistant message with a status marker so Phuong can route deterministically. The marker must be the last lines of the message:
+
+\`\`\`
+STATUS: <STATE>
+REASON: <one line, optional>
+\`\`\`
+
+\`<STATE>\` is exactly one of (case-sensitive):
+
+- \`DONE\` — task complete, ready for review.
+- \`DONE_WITH_CONCERNS\` — finished the work but flagging doubts (use REASON to describe them).
+- \`NEEDS_CONTEXT\` — cannot proceed without missing information; ask in the message body and use REASON to summarize what is missing.
+- \`BLOCKED\` — cannot complete the task as scoped (failing dependency, contradictory spec, environment issue). Use REASON to describe the blocker.
+
+Rules:
+- Emit the marker on every final-turn message, including when asking clarifying questions (use \`NEEDS_CONTEXT\`).
+- Use the literal token \`STATUS:\` followed by a single space and the state. Do not wrap in quotes, code fences, or backticks.
+- \`REASON:\` is optional and limited to one line. Keep it under ~140 chars.
+- Do not invent additional states.
 `;
 }
 

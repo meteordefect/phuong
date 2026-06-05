@@ -124,6 +124,17 @@ describe("renderTaskAgentAppendSystemPrompt", () => {
 		expect(rendered).toContain("Do not merge any pull request yourself");
 		expect(rendered).toContain("founder reviews all work");
 	});
+
+	it("documents the four-state status reporting protocol", () => {
+		const rendered = renderTaskAgentAppendSystemPrompt();
+		expect(rendered).toContain("Reporting Status");
+		expect(rendered).toContain("STATUS: <STATE>");
+		expect(rendered).toContain("REASON:");
+		expect(rendered).toContain("`DONE`");
+		expect(rendered).toContain("`DONE_WITH_CONCERNS`");
+		expect(rendered).toContain("`NEEDS_CONTEXT`");
+		expect(rendered).toContain("`BLOCKED`");
+	});
 });
 
 describe("resolveTaskAgentAppendSystemPrompt", () => {

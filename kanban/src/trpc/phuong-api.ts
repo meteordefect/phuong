@@ -3,6 +3,7 @@ import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { BoardOperations } from "../manager/phuong-tools.js";
 import { getAvailableModels, getSessionStats, getActiveTurn } from "../manager/phuong-session.js";
 import { listSessions, loadSession } from "../manager/session-history.js";
+import { parseTaskAgentStatus } from "../manager/task-status-protocol.js";
 import { moveTaskToColumn } from "../core/task-board-mutations.js";
 import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint.js";
 import { loadWorkspaceContext, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state.js";
@@ -106,11 +107,13 @@ export function createBoardOperations(
 				if (!session) {
 					return null;
 				}
+				const finalMessage = session.latestHookActivity?.finalMessage ?? null;
 				return {
 					state: session.state,
 					exitCode: session.exitCode ?? null,
 					reviewReason: session.reviewReason ?? null,
 					lastActivity: session.latestHookActivity?.activityText ?? null,
+					reportedStatus: parseTaskAgentStatus(finalMessage),
 				};
 			} catch {
 				return null;
