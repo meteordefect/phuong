@@ -22,16 +22,34 @@ export interface BoardOperations {
 	} | null>;
 }
 
+/** Required sections for every unit prompt passed to create_chat (Phase A contract). */
+export const CREATE_CHAT_PROMPT_CONTRACT = [
+	"Objective",
+	"In-scope / out-of-scope",
+	"Done-criteria",
+	"Files / subsystems",
+	"STATUS marker reminder",
+] as const;
+
 export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 	const createChatTool: ToolDefinition = {
 		name: "create_chat",
 		label: "Create Chat",
 		description:
-			"Create and start a new agent chat session. A Pi coding agent will immediately begin working on the instructions you provide. " +
-			"Use this when the user asks you to do work, break down tasks, or execute changes.",
+			"Create and start a new Pi agent chat for one work unit. The agent begins immediately in its own git worktree. " +
+			"For substantive multi-unit work, announce the routing table in your reply before calling this tool. " +
+			"One unit ≈ one chat. Do not use this for pure conversation. " +
+			"Respect the per-unit retry budget (max 3 dispatches): never silently retry an identical prompt.",
 		parameters: Type.Object({
 			prompt: Type.String({
-				description: "Detailed instructions for the Pi coding agent that will work in this chat session",
+				description:
+					"Unit instructions for the Pi coding agent. MUST include all of: " +
+					"(1) Objective — what success looks like; " +
+					"(2) In-scope / out-of-scope — hard boundaries; " +
+					"(3) Done-criteria — preferably runnable commands or grep/file invariants the agent (and you) can check; " +
+					"(4) Files / subsystems to touch; " +
+					"(5) Reminder to end the final message with STATUS: <DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED> and optional REASON:. " +
+					"Do not send a bare task title.",
 			}),
 		}),
 		execute: async (_toolCallId, params) => {
@@ -73,7 +91,11 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 	const startChatTool: ToolDefinition = {
 		name: "start_chat",
 		label: "Start Chat",
-		description: "Resume an idle or stopped agent chat session. Use this to restart a chat that was previously created but is not running.",
+		description:
+			"Resume an idle or stopped agent chat session (same unit / same chat). " +
+			"Use after NEEDS_CONTEXT once the missing info is provided, or to continue a stopped session. " +
+			"Do not create a new chat for the same unit when resume will do. " +
+			"Resuming does not count as a new dispatch against the retry budget unless you changed the unit prompt via a new create_chat.",
 		parameters: Type.Object({
 			chat_id: Type.String({ description: "The chat/task ID to start or resume" }),
 		}),
@@ -97,9 +119,12 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 		name: "check_chat_status",
 		label: "Check Chat Status",
 		description:
-			"Check the current status of an agent chat session — whether it is running, completed, failed, or idle. " +
+			"Check the current status of an agent chat session — running, completed, failed, or idle. " +
 			"When the agent's last message includes a STATUS marker (DONE, DONE_WITH_CONCERNS, NEEDS_CONTEXT, BLOCKED), " +
-			"`Reported status` reflects it and is the authoritative signal for routing the next step.",
+			"`Reported status` is authoritative: DONE still needs Gate 1 / user confirmation before you declare success; " +
+			"NEEDS_CONTEXT → resume in-place (do not new-chat the same unit); " +
+			"BLOCKED → triage as spec / environment / capability under the retry budget; " +
+			"DONE_WITH_CONCERNS → read the reason before shipping.",
 		parameters: Type.Object({
 			chat_id: Type.String({ description: "The chat/task ID to check" }),
 		}),

@@ -96,6 +96,9 @@ This upgrade assumes those exist and builds protocol discipline on top.
 - Ask Phuong for a multi-file feature → it announces a unit table before creating chats
 - Trivial ask → no table, at most one chat or direct answer
 - Each created chat prompt contains done-criteria
+- Unit tests in `kanban/test/runtime/phuong-orchestrate-phase-a.test.ts` lock the fallback prompt + `create_chat` contract text
+
+**Status:** Phase A code landed (prompt + tool descriptions). Soft enforcement only until Phase B tools.
 
 **Out of scope for A:** new tools, checkpoint files, model routing.
 
@@ -202,7 +205,7 @@ Only after A–C are stable:
 
 ## Suggested kickoff order
 
-1. **Phase A only** in the first upgrade PR (prompt + `create_chat` contract).
+1. **Phase A only** in the first upgrade PR (prompt + `create_chat` contract). ✅ Implemented in `phuong-context.ts` + `phuong-tools.ts` (see acceptance below).
 2. Dogfood on a real multi-file task on `beta.friendlabs.ai`.
 3. Phase B tools once prompt discipline proves useful.
 4. Phase C when multi-chat plans regularly outlive a single Phuong session.
