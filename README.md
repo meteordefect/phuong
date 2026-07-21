@@ -47,6 +47,7 @@ Sessions persist independently. Switching between chats unmounts the terminal fr
 |----------|---------|
 | `docs/BUILD-RUNSHEET.md` | Step-by-step build execution plan |
 | `docs/KANBAN-FULL-BUILD-PLAN.md` | Full architectural plan and decisions |
+| `docs/PHUONG-ORCHESTRATE-ADOPTION-PLAN.md` | Strip Claude orchestrate ideas into Phuong + Pi |
 | `docs/CLINE-KANBAN-ADOPTION-REPORT.md` | Evaluation of cline/kanban as the base |
 | `docs/MEMORY-SEPARATION.md` | External memory repo design |
 | `docs/ARCHITECTURE.md` | v1 architecture (historical reference) |

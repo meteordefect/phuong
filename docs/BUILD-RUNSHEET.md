@@ -321,6 +321,14 @@ Phuong is integrated as a sidebar agent panel (`PhuongChatPanel`) using the exis
 - Memory write-back from Phuong conversations
 - Phuong context assembly using the external memory service (system prompt → overview → project context → relevant memories)
 
+### 6.4b Phuong orchestration protocol
+
+Adopt the stripped orchestration protocol from `docs/PHUONG-ORCHESTRATE-ADOPTION-PLAN.md` (ideas from claude-orchestrate, Claude harness removed).
+
+- **Phase A (prompt + `create_chat` contract)** — in progress / landing: scope gate, routing table, unit prompt contract, Gate 1 soft check, triage + retry budget in `phuong-context.ts` + `phuong-tools.ts`
+- **Phase B** — `run_gate` / verifier chats (next)
+- **Phase C+** — checkpoint / run archive, then ship gate
+
 ### 6.5 Checkpoint
 
 UI rebuilt as projects-and-chats. Phuong integrated as sidebar agent. New chat creation works. Committed and deployed.
