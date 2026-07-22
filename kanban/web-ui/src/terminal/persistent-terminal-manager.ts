@@ -65,6 +65,7 @@ interface MountPersistentTerminalOptions {
 interface EnsurePersistentTerminalInput extends PersistentTerminalAppearance {
 	taskId: string;
 	workspaceId: string;
+	readOnly?: boolean;
 }
 
 function appendAuthToken(url: URL): void {
@@ -155,13 +156,16 @@ class PersistentTerminal {
 	private connectionReady = false;
 	private outputTextDecoder = new TextDecoder();
 	private disposed = false;
+	private readOnly = false;
 
 	constructor(
 		private readonly taskId: string,
 		private readonly workspaceId: string,
 		appearance: PersistentTerminalAppearance,
+		readOnly = false,
 	) {
 		this.appearance = appearance;
+		this.readOnly = readOnly;
 		this.parkingRoot = getParkingRoot();
 		this.hostElement = document.createElement("div");
 		Object.assign(this.hostElement.style, {
@@ -176,6 +180,7 @@ class PersistentTerminal {
 				cursorColor: this.appearance.cursorColor,
 				isMacPlatform,
 				terminalBackgroundColor: this.appearance.terminalBackgroundColor,
+				disableStdin: readOnly,
 			}),
 			cols: initialGeometry.cols,
 			rows: initialGeometry.rows,
@@ -187,6 +192,14 @@ class PersistentTerminal {
 		this.terminal.unicode.activeVersion = "11";
 		this.terminal.open(this.hostElement);
 		this.terminal.attachCustomKeyEventHandler((event) => {
+			if (this.readOnly) {
+				if (isCopyShortcut(event) && this.terminal.hasSelection()) {
+					void navigator.clipboard.writeText(this.terminal.getSelection()).catch(() => {
+						// Ignore clipboard failures.
+					});
+				}
+				return false;
+			}
 			if (event.key === "Enter" && event.shiftKey) {
 				if (event.type === "keydown") {
 					this.terminal.input(SHIFT_ENTER_SEQUENCE);
@@ -404,6 +417,13 @@ class PersistentTerminal {
 		this.updateAppearance(appearance);
 	}
 
+	setReadOnly(readOnly: boolean): void {
+		this.readOnly = readOnly;
+		this.terminal.options.disableStdin = readOnly;
+		this.terminal.options.cursorBlink = !readOnly;
+		this.terminal.options.scrollOnUserInput = !readOnly;
+	}
+
 	subscribe(subscriber: PersistentTerminalSubscriber): () => void {
 		this.subscribers.add(subscriber);
 		subscriber.onLastError?.(this.lastError);
@@ -591,10 +611,15 @@ export function ensurePersistentTerminal(input: EnsurePersistentTerminalInput): 
 	const key = buildKey(input.workspaceId, input.taskId);
 	let terminal = terminals.get(key);
 	if (!terminal) {
-		terminal = new PersistentTerminal(input.taskId, input.workspaceId, {
-			cursorColor: input.cursorColor,
-			terminalBackgroundColor: input.terminalBackgroundColor,
-		});
+		terminal = new PersistentTerminal(
+			input.taskId,
+			input.workspaceId,
+			{
+				cursorColor: input.cursorColor,
+				terminalBackgroundColor: input.terminalBackgroundColor,
+			},
+			input.readOnly ?? false,
+		);
 		terminals.set(key, terminal);
 		return terminal;
 	}
@@ -602,6 +627,7 @@ export function ensurePersistentTerminal(input: EnsurePersistentTerminalInput): 
 		cursorColor: input.cursorColor,
 		terminalBackgroundColor: input.terminalBackgroundColor,
 	});
+	terminal.setReadOnly(input.readOnly ?? false);
 	return terminal;
 }
 

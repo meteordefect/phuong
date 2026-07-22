@@ -29,6 +29,8 @@ export interface AgentAdapterLaunchInput {
 	images?: RuntimeTaskImage[];
 	startInPlanMode?: boolean;
 	resumeFromTrash?: boolean;
+	/** Optional per-chat model override (Hermes tier routing). */
+	model?: string;
 	env?: Record<string, string | undefined>;
 	workspaceId?: string;
 }
@@ -1360,9 +1362,9 @@ const piAdapter: AgentSessionAdapter = {
 			args.push("--continue");
 		}
 
-		const defaultModel = process.env.DEFAULT_MODEL || process.env.SUBAGENT_MODEL;
-		if (defaultModel && !hasCliOption(args, "--model") && !hasCliOption(args, "--provider")) {
-			args.push("--model", defaultModel);
+		const chatModel = input.model?.trim() || process.env.DEFAULT_MODEL || process.env.SUBAGENT_MODEL;
+		if (chatModel && !hasCliOption(args, "--model") && !hasCliOption(args, "--provider")) {
+			args.push("--model", chatModel);
 		}
 
 		const kimiApiKey =

@@ -25,6 +25,17 @@ export interface AgentTerminalPanelProps {
 	taskId: string;
 	workspaceId: string | null;
 	terminalEnabled?: boolean;
+	/** Watch-only: no keyboard input to the agent (Hermes owns the work). */
+	readOnly?: boolean;
+	/** Optional watch-mode banner and unlock control. */
+	onRequestInterject?: () => void;
+	onReturnToHermes?: () => void;
+	artifacts?: Array<{
+		id: string;
+		path: string;
+		mimeType: string;
+		label?: string;
+	}>;
 	summary: RuntimeTaskSessionSummary | null;
 	onSummary?: (summary: RuntimeTaskSessionSummary) => void;
 	onCommit?: () => void;
@@ -173,6 +184,10 @@ function AgentTerminalPanelLayout({
 	onSendAgentCommand,
 	isExpanded = false,
 	onToggleExpand,
+	readOnly = false,
+	onRequestInterject,
+	onReturnToHermes,
+	artifacts = [],
 	sessionControls,
 }: AgentTerminalPanelProps & { sessionControls: AgentTerminalSessionControls }): ReactElement {
 	const { containerRef, lastError, isStopping, clearTerminal, stopTerminal } = sessionControls;
@@ -199,6 +214,47 @@ function AgentTerminalPanelLayout({
 				borderRight: showRightBorder ? "1px solid var(--color-divider)" : undefined,
 			}}
 		>
+			{readOnly ? (
+				<div className="flex items-center justify-between gap-2 border-b border-border bg-surface-1 px-3 py-2">
+					<div className="min-w-0">
+						<p className="text-xs font-medium text-text-primary">Watching — Hermes is handling this</p>
+						<p className="truncate text-[11px] text-text-tertiary">
+							Read-only view. You can observe the flow without interjecting.
+						</p>
+					</div>
+					<div className="flex shrink-0 items-center gap-2">
+						{onReturnToHermes ? (
+							<Button variant="ghost" size="sm" onClick={onReturnToHermes}>
+								Hermes
+							</Button>
+						) : null}
+						{onRequestInterject ? (
+							<Button variant="default" size="sm" onClick={onRequestInterject}>
+								Interject
+							</Button>
+						) : null}
+						<span
+							className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${statusTagColors[statusTagStyle]}`}
+						>
+							{statusLabel}
+						</span>
+					</div>
+				</div>
+			) : null}
+			{artifacts.length > 0 ? (
+				<div className="flex gap-2 overflow-x-auto border-b border-border bg-surface-1 px-3 py-2">
+					{artifacts.map((artifact) => (
+						<div
+							key={artifact.id}
+							className="shrink-0 rounded-md border border-border bg-surface-2 px-2 py-1 text-[11px] text-text-secondary"
+							title={artifact.path}
+						>
+							<span className="font-medium text-text-primary">{artifact.label ?? "Artifact"}</span>
+							<span className="ml-1 font-mono text-text-tertiary">{artifact.path}</span>
+						</div>
+					))}
+				</div>
+			) : null}
 			{showSessionToolbar ? (
 				<>
 					<div
@@ -360,9 +416,10 @@ export function AgentTerminalPanel(props: AgentTerminalPanelProps): ReactElement
 		taskId: props.taskId,
 		workspaceId: props.workspaceId,
 		enabled: props.terminalEnabled ?? true,
+		readOnly: props.readOnly ?? false,
 		onSummary: props.onSummary,
 		onConnectionReady: props.onConnectionReady,
-		autoFocus: props.autoFocus,
+		autoFocus: props.readOnly ? false : props.autoFocus,
 		isVisible: props.isVisible,
 		sessionStartedAt: props.summary?.startedAt ?? null,
 		terminalBackgroundColor: props.terminalBackgroundColor ?? "var(--color-surface-1)",

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { createBoardOperations } from "../../../src/trpc/phoung-api.js";
+import { createBoardOperations } from "../../../src/trpc/phuong-api.js";
 
 const trpcMocks = vi.hoisted(() => ({
 	createTRPCProxyClient: vi.fn(),
@@ -144,6 +144,7 @@ describe("createBoardOperations startTask", () => {
 				taskId: "task-1",
 				prompt: "Do the thing",
 				baseRef: "main",
+				model: undefined,
 			}),
 		);
 		expect(workspaceStateMocks.mutateWorkspaceState).toHaveBeenCalledTimes(1);

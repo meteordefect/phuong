@@ -26,7 +26,7 @@ Trivial turns stay direct: single-chat fixes and conversational questions skip t
 | Verifier | **Verifier Pi chat** or **Gate 1 tool** | Evidence required; never trust worker self-report alone. |
 | Run archive | **Project memory + run folder under memory repo** | Not `.claude/`. Prefer `/data/phuong-memory/...` or a Phuong-owned runtime path. |
 | Checkpoint | **`checkpoint.json` per orchestration run** | Written by Phuong tools / manager service, not by Claude harness. |
-| Model tiers T0–T3 | **Capability tiers mapped to available providers** | Today Pi is mostly GLM-5 via ZAI. Tiering starts as depth/spec strictness; model routing is Phase B only if we can pass per-chat model. |
+| Model tiers T0–T3 | **Capability tiers mapped to Pi models** | `create_chat` accepts `tier` / `model`; `model-tier-routing.ts` maps T0/T1 → light (K2.7), T2/T3 → complex (K3). Override with `PHUONG_MODEL_T*`. |
 
 ## Take vs skip
 
@@ -126,16 +126,22 @@ This upgrade assumes those exist and builds protocol discipline on top.
 - Verifier chats return per-criterion PASS/FAIL with citations
 - Same prompt is not silently retried more than budget allows (prompt-enforced; soft OK)
 
-**Model note:** If/when Kanban can pass a model per chat start, map:
+**Model note:** Per-chat model is live. Map:
 
 | Tier | Meaning | Suggested mapping (example) |
 |---|---|---|
-| T0 | Mechanical | cheapest/fastest available |
-| T1 | Standard | current Pi default (GLM-5) |
-| T2 | Complex | strongest available worker |
-| T3 | Frontier | Phuong’s own model / rare |
+| T0 | Mechanical | `PHUONG_MODEL_T0` / Kimi K2.7 |
+| T1 | Standard | `PHUONG_MODEL_T1` / default worker |
+| T2 | Complex | `PHUONG_MODEL_T2` / Kimi K3 |
+| T3 | Frontier | `PHUONG_MODEL_T3` / Kimi K3 |
 
-Until then, tiers are **depth labels in the dispatch prompt only**.
+Hermes always passes `tier` on `create_chat`. Explicit `model` overrides the map.
+
+Also shipped with Hermes-first UI:
+
+- Hermes conduit as default home (Dashboard optional)
+- Watch-only worker chats (Interject unlock)
+- `run_gate`, `attach_artifact`, `list_artifacts`
 
 ---
 

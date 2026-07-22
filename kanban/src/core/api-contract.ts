@@ -87,6 +87,18 @@ export const runtimeTaskImageSchema = z.object({
 });
 export type RuntimeTaskImage = z.infer<typeof runtimeTaskImageSchema>;
 
+export const runtimeTaskTierSchema = z.enum(["T0", "T1", "T2", "T3"]);
+export type RuntimeTaskTier = z.infer<typeof runtimeTaskTierSchema>;
+
+export const runtimeTaskArtifactSchema = z.object({
+	id: z.string(),
+	path: z.string(),
+	mimeType: z.string(),
+	label: z.string().optional(),
+	createdAt: z.number().optional(),
+});
+export type RuntimeTaskArtifact = z.infer<typeof runtimeTaskArtifactSchema>;
+
 export const runtimeBoardCardSchema = z.object({
 	id: z.string(),
 	prompt: z.string(),
@@ -94,6 +106,12 @@ export const runtimeBoardCardSchema = z.object({
 	autoReviewEnabled: z.boolean().optional(),
 	autoReviewMode: runtimeTaskAutoReviewModeSchema.optional(),
 	images: z.array(runtimeTaskImageSchema).optional(),
+	/** Pi/CLI model override for this chat (e.g. kimi-coding/kimi-k3). */
+	model: z.string().optional(),
+	/** Capability tier used for model routing (T0 light … T3 complex). */
+	tier: runtimeTaskTierSchema.optional(),
+	/** End-to-end screenshots and other artifacts Hermes or workers attach. */
+	artifacts: z.array(runtimeTaskArtifactSchema).optional(),
 	baseRef: z.string(),
 	createdAt: z.number(),
 	updatedAt: z.number(),
@@ -732,6 +750,8 @@ export const runtimeTaskSessionStartRequestSchema = z.object({
 	mode: runtimeTaskSessionModeSchema.optional(),
 	resumeFromTrash: z.boolean().optional(),
 	oneShotGitAction: z.boolean().optional(),
+	/** Optional per-chat model override (Hermes tier routing). */
+	model: z.string().optional(),
 	baseRef: z.string(),
 	cols: z.number().int().positive().optional(),
 	rows: z.number().int().positive().optional(),

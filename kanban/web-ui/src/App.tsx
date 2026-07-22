@@ -40,7 +40,6 @@ import { useDocumentVisibility } from "@/hooks/use-document-visibility";
 import { useGitActions } from "@/hooks/use-git-actions";
 import { useHomeProjectAgentChatPanel } from "@/hooks/use-home-project-agent-chat-panel";
 import { useProjectAgentChats } from "@/hooks/use-project-agent-chats";
-import { PhuongChatPanel } from "@/components/phuong/phuong-chat-panel";
 import { useKanbanAccessGate } from "@/hooks/use-kanban-access-gate";
 import { useOpenWorkspace } from "@/hooks/use-open-workspace";
 import { usePrewarmedAgentTerminals } from "@/hooks/use-prewarmed-agent-terminals";
@@ -82,7 +81,7 @@ export default function App(): ReactElement {
 	const [canPersistWorkspaceState, setCanPersistWorkspaceState] = useState(false);
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 	const [settingsInitialSection, setSettingsInitialSection] = useState<RuntimeSettingsSection | null>(null);
-	const [homeSidebarSection, setHomeSidebarSection] = useState<"projects" | "agent">("projects");
+	const [homeSidebarSection, setHomeSidebarSection] = useState<"projects" | "agent">("agent");
 	const [isClearTrashDialogOpen, setIsClearTrashDialogOpen] = useState(false);
 	const [isGitHistoryOpen, setIsGitHistoryOpen] = useState(false);
 	const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -434,9 +433,15 @@ export default function App(): ReactElement {
 			baseRef,
 		});
 		setBoard(created.board);
+		setHomeSidebarSection("projects");
 		setSelectedTaskId(created.task.id);
 		setPendingNewChatStartId(created.task.id);
 	}, [board, defaultTaskBranchRef, setBoard]);
+
+	const handleReturnToHermes = useCallback(() => {
+		setSelectedTaskId(null);
+		setHomeSidebarSection("agent");
+	}, []);
 
 	const homeProjectAgentChatPanel = useHomeProjectAgentChatPanel({
 		currentProjectId,
@@ -444,12 +449,14 @@ export default function App(): ReactElement {
 		runtimeProjectConfig,
 		board,
 		selectedTaskId,
+		homeSurfaceMode: homeSidebarSection === "agent" && !selectedTaskId ? "hermes" : "dashboard",
 		taskSessions: sessions,
 		clineSessionContextVersion,
 		latestTaskChatMessage,
 		taskChatMessagesByTaskId,
 		onSessionSummary: upsertSession,
 		onCreateNewChat: handleCreateNewChat,
+		onReturnToHermes: handleReturnToHermes,
 	});
 	const { runningShortcutLabel, handleSelectShortcutLabel, handleRunShortcut, handleCreateShortcut } = useShortcutActions({
 		currentProjectId,
@@ -575,6 +582,7 @@ export default function App(): ReactElement {
 	const handleBack = useCallback(() => {
 		setSelectedTaskId(null);
 		setIsGitHistoryOpen(false);
+		setHomeSidebarSection("agent");
 	}, []);
 
 	const handleSelectAgentChatFromSidebar = useCallback(
@@ -582,10 +590,19 @@ export default function App(): ReactElement {
 			if (navigationCurrentProjectId !== projectId) {
 				void handleSelectProject(projectId);
 			}
+			setHomeSidebarSection("projects");
 			setSelectedTaskId(taskId);
 		},
 		[handleSelectProject, navigationCurrentProjectId],
 	);
+
+	const handleHomeSidebarSectionChange = useCallback((section: "projects" | "agent") => {
+		setHomeSidebarSection(section);
+		if (section === "agent") {
+			setSelectedTaskId(null);
+			setIsGitHistoryOpen(false);
+		}
+	}, []);
 
 	const handleOpenSettings = useCallback((section?: RuntimeSettingsSection) => {
 		setSettingsInitialSection(section ?? null);
@@ -776,9 +793,8 @@ export default function App(): ReactElement {
 				currentProjectId={navigationCurrentProjectId}
 				removingProjectId={removingProjectId}
 				activeSection={homeSidebarSection}
-				onActiveSectionChange={setHomeSidebarSection}
+				onActiveSectionChange={handleHomeSidebarSectionChange}
 				canShowAgentSection={!hasNoProjects && Boolean(currentProjectId)}
-				agentSectionContent={<PhuongChatPanel workspaceId={currentProjectId} />}
 				chatsByProject={chatsByProject}
 				selectedTaskId={selectedTaskId}
 				onSelectProject={(projectId) => {

@@ -323,10 +323,11 @@ Phuong is integrated as a sidebar agent panel (`PhuongChatPanel`) using the exis
 
 ### 6.4b Phuong orchestration protocol
 
-Adopt the stripped orchestration protocol from `docs/PHUONG-ORCHESTRATE-ADOPTION-PLAN.md` (ideas from claude-orchestrate, Claude harness removed).
+Adopt the stripped orchestration protocol from `docs/PHUONG-ORCHESTRATE-ADOPTION-PLAN.md` (ideas from claude-orchestrate, Claude harness removed). Product direction: **Hermes as conduit, Dashboard optional** — see `docs/HERMES.md`.
 
-- **Phase A (prompt + `create_chat` contract)** — in progress / landing: scope gate, routing table, unit prompt contract, Gate 1 soft check, triage + retry budget in `phuong-context.ts` + `phuong-tools.ts`
-- **Phase B** — `run_gate` / verifier chats (next)
+- **Phase A (prompt + `create_chat` contract)** — done: scope gate, routing table, unit prompt contract, Gate 1 soft check, triage + retry budget
+- **Hermes-first + model routing** — done: Hermes default home, watch-only workers, tier→model on `create_chat`, `run_gate` / `attach_artifact`
+- **Phase B remaining** — verifier chat role, stronger Gate 1 project conventions, memory write-back (Phase 7)
 - **Phase C+** — checkpoint / run archive, then ship gate
 
 ### 6.5 Checkpoint

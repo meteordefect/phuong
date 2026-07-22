@@ -9,6 +9,7 @@ interface UsePersistentTerminalSessionInput {
 	taskId: string;
 	workspaceId: string | null;
 	enabled?: boolean;
+	readOnly?: boolean;
 	onSummary?: (summary: RuntimeTaskSessionSummary) => void;
 	onConnectionReady?: (taskId: string) => void;
 	autoFocus?: boolean;
@@ -30,6 +31,7 @@ export function usePersistentTerminalSession({
 	taskId,
 	workspaceId,
 	enabled = true,
+	readOnly = false,
 	onSummary,
 	onConnectionReady,
 	autoFocus = false,
@@ -100,6 +102,7 @@ export function usePersistentTerminalSession({
 			workspaceId,
 			cursorColor,
 			terminalBackgroundColor,
+			readOnly,
 		});
 		if (didSessionRestart) {
 			terminal.reset();
@@ -126,7 +129,7 @@ export function usePersistentTerminalSession({
 				terminalBackgroundColor,
 			},
 			{
-				autoFocus,
+				autoFocus: readOnly ? false : autoFocus,
 				isVisible,
 			},
 		);
@@ -144,6 +147,7 @@ export function usePersistentTerminalSession({
 		cursorColor,
 		enabled,
 		isVisible,
+		readOnly,
 		sessionStartedAt,
 		taskId,
 		terminalBackgroundColor,

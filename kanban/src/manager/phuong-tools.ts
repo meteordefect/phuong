@@ -7,11 +7,19 @@ import {
 	loadSpecificMemories,
 	loadProjectContext,
 } from "../memory/memory-service.js";
+import type { RuntimeTaskArtifact, RuntimeTaskTier } from "../core/api-contract.js";
+import { resolveChatModel } from "./model-tier-routing.js";
 import type { TaskAgentStatusReport } from "./task-status-protocol.js";
 
 export interface BoardOperations {
-	createCard: (prompt: string, baseRef?: string) => Promise<{ cardId: string }>;
-	listCards: () => Promise<{ id: string; prompt: string; column: string; sessionState?: string }[]>;
+	createCard: (
+		prompt: string,
+		baseRef?: string,
+		options?: { model?: string; tier?: RuntimeTaskTier },
+	) => Promise<{ cardId: string; model?: string; tier?: RuntimeTaskTier }>;
+	listCards: () => Promise<
+		{ id: string; prompt: string; column: string; sessionState?: string; model?: string; tier?: string }[]
+	>;
 	startTask: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
 	getSessionSummary: (taskId: string) => Promise<{
 		state: string;
@@ -20,6 +28,15 @@ export interface BoardOperations {
 		lastActivity: string | null;
 		reportedStatus: TaskAgentStatusReport | null;
 	} | null>;
+	runGate?: (
+		taskId: string,
+		command: string,
+	) => Promise<{ ok: boolean; exitCode: number | null; output: string; error?: string }>;
+	attachArtifact?: (
+		taskId: string,
+		artifact: Omit<RuntimeTaskArtifact, "id" | "createdAt"> & { id?: string },
+	) => Promise<{ ok: boolean; artifact?: RuntimeTaskArtifact; error?: string }>;
+	listArtifacts?: (taskId: string) => Promise<RuntimeTaskArtifact[]>;
 }
 
 /** Required sections for every unit prompt passed to create_chat (Phase A contract). */
@@ -36,9 +53,10 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 		name: "create_chat",
 		label: "Create Chat",
 		description:
-			"Create and start a new Pi agent chat for one work unit. The agent begins immediately in its own git worktree. " +
+			"Create and start a new Pi agent chat for one work unit under the current project. The agent begins immediately in its own git worktree. " +
 			"For substantive multi-unit work, announce the routing table in your reply before calling this tool. " +
 			"One unit ≈ one chat. Do not use this for pure conversation. " +
+			"Pass tier (T0–T3) or an explicit model so light work uses a cheaper model and complex work uses a stronger one. " +
 			"Respect the per-unit retry budget (max 3 dispatches): never silently retry an identical prompt.",
 		parameters: Type.Object({
 			prompt: Type.String({
@@ -51,19 +69,55 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 					"(5) Reminder to end the final message with STATUS: <DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED> and optional REASON:. " +
 					"Do not send a bare task title.",
 			}),
+			tier: Type.Optional(
+				Type.Union(
+					[Type.Literal("T0"), Type.Literal("T1"), Type.Literal("T2"), Type.Literal("T3")],
+					{
+						description:
+							"Capability tier for model routing. T0=mechanical/cheap, T1=standard, T2=complex, T3=high-risk. " +
+							"Maps to env PHUONG_MODEL_T0…T3 (defaults: T0/T1 lighter Kimi, T2/T3 Kimi K3).",
+					},
+				),
+			),
+			model: Type.Optional(
+				Type.String({
+					description:
+						"Optional explicit Pi model id (e.g. kimi-coding/kimi-k3 or kimi-coding/kimi-k2.7). Overrides tier mapping when set.",
+				}),
+			),
 		}),
 		execute: async (_toolCallId, params) => {
-			const { prompt } = params as { prompt: string };
-			const result = await boardOps.createCard(prompt);
+			const { prompt, tier, model } = params as {
+				prompt: string;
+				tier?: RuntimeTaskTier;
+				model?: string;
+			};
+			const resolvedModel = resolveChatModel({ model, tier });
+			const result = await boardOps.createCard(prompt, undefined, {
+				model: resolvedModel,
+				tier,
+			});
 			const startResult = await boardOps.startTask(result.cardId);
 			if (!startResult.ok) {
 				return {
-					content: [{ type: "text" as const, text: `Chat created (${result.cardId}) but failed to start: ${startResult.error}` }],
+					content: [
+						{
+							type: "text" as const,
+							text: `Chat created (${result.cardId}) but failed to start: ${startResult.error}`,
+						},
+					],
 					details: {},
 				};
 			}
+			const modelNote = resolvedModel ? ` model=${resolvedModel}` : "";
+			const tierNote = tier ? ` tier=${tier}` : "";
 			return {
-				content: [{ type: "text" as const, text: `Chat created and started (${result.cardId}). The Pi agent is now working on it. The user can click into this chat from the sidebar to see progress.` }],
+				content: [
+					{
+						type: "text" as const,
+						text: `Chat created and started (${result.cardId}).${tierNote}${modelNote} The Pi agent is now working on it under this project. The user can watch it from the Dashboard (read-only) or stay in Hermes chat.`,
+					},
+				],
 				details: {},
 			};
 		},
@@ -81,8 +135,10 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 			}
 			const lines = cards.map((c) => {
 				const status = c.sessionState ?? c.column;
+				const modelBit = c.model ? ` model=${c.model}` : "";
+				const tierBit = c.tier ? ` tier=${c.tier}` : "";
 				const preview = c.prompt ? c.prompt.slice(0, 120) + (c.prompt.length > 120 ? "..." : "") : "(no prompt)";
-				return `- [${status}] (${c.id}) ${preview}`;
+				return `- [${status}] (${c.id})${tierBit}${modelBit} ${preview}`;
 			});
 			return { content: [{ type: "text" as const, text: lines.join("\n") }], details: {} };
 		},
@@ -133,7 +189,12 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 			const summary = await boardOps.getSessionSummary(chat_id);
 			if (!summary) {
 				return {
-					content: [{ type: "text" as const, text: `No session found for chat ${chat_id}. It may not have been started yet.` }],
+					content: [
+						{
+							type: "text" as const,
+							text: `No session found for chat ${chat_id}. It may not have been started yet.`,
+						},
+					],
 					details: {},
 				};
 			}
@@ -157,6 +218,129 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 				content: [{ type: "text" as const, text: parts.join("\n") }],
 				details: {},
 			};
+		},
+	};
+
+	const runGateTool: ToolDefinition = {
+		name: "run_gate",
+		label: "Run Gate",
+		description:
+			"Run a Gate 1 command in a chat's worktree (tests, lint, build, or a screenshot/E2E script). " +
+			"Use after a worker reports DONE before telling the user the unit shipped. " +
+			"Prefer project conventions from memory context.md.",
+		parameters: Type.Object({
+			chat_id: Type.String({ description: "The chat/task ID whose worktree to use" }),
+			command: Type.String({
+				description: "Shell command to run in the chat worktree (e.g. npm test -- --run path)",
+			}),
+		}),
+		execute: async (_toolCallId, params) => {
+			const { chat_id, command } = params as { chat_id: string; command: string };
+			if (!boardOps.runGate) {
+				return {
+					content: [
+						{
+							type: "text" as const,
+							text: "run_gate is not available in this environment.",
+						},
+					],
+					details: {},
+				};
+			}
+			const result = await boardOps.runGate(chat_id, command);
+			if (!result.ok && result.error) {
+				return {
+					content: [{ type: "text" as const, text: `Gate failed: ${result.error}` }],
+					details: {},
+				};
+			}
+			const status = result.exitCode === 0 ? "PASS" : "FAIL";
+			return {
+				content: [
+					{
+						type: "text" as const,
+						text: `Gate ${status} (exit ${result.exitCode ?? "?"})\n\n${result.output.slice(0, 4000)}`,
+					},
+				],
+				details: {},
+			};
+		},
+	};
+
+	const attachArtifactTool: ToolDefinition = {
+		name: "attach_artifact",
+		label: "Attach Artifact",
+		description:
+			"Attach an E2E screenshot or other artifact path from a chat worktree so the user can see it on the Dashboard (phone/desktop) without opening the worker terminal. " +
+			"Path should be relative to the chat worktree (e.g. .phuong/artifacts/login.png).",
+		parameters: Type.Object({
+			chat_id: Type.String({ description: "Chat/task ID" }),
+			path: Type.String({ description: "Path relative to the chat worktree" }),
+			mime_type: Type.Optional(Type.String({ description: "MIME type, default image/png" })),
+			label: Type.Optional(Type.String({ description: "Short label shown in the UI" })),
+		}),
+		execute: async (_toolCallId, params) => {
+			const { chat_id, path, mime_type, label } = params as {
+				chat_id: string;
+				path: string;
+				mime_type?: string;
+				label?: string;
+			};
+			if (!boardOps.attachArtifact) {
+				return {
+					content: [{ type: "text" as const, text: "attach_artifact is not available." }],
+					details: {},
+				};
+			}
+			const result = await boardOps.attachArtifact(chat_id, {
+				path,
+				mimeType: mime_type?.trim() || "image/png",
+				label,
+			});
+			if (!result.ok) {
+				return {
+					content: [{ type: "text" as const, text: `Could not attach artifact: ${result.error}` }],
+					details: {},
+				};
+			}
+			return {
+				content: [
+					{
+						type: "text" as const,
+						text: `Artifact attached to chat ${chat_id}: ${result.artifact?.label ?? result.artifact?.path}`,
+					},
+				],
+				details: {},
+			};
+		},
+	};
+
+	const listArtifactsTool: ToolDefinition = {
+		name: "list_artifacts",
+		label: "List Artifacts",
+		description: "List screenshots and other artifacts attached to a chat.",
+		parameters: Type.Object({
+			chat_id: Type.String({ description: "Chat/task ID" }),
+		}),
+		execute: async (_toolCallId, params) => {
+			const { chat_id } = params as { chat_id: string };
+			if (!boardOps.listArtifacts) {
+				return {
+					content: [{ type: "text" as const, text: "list_artifacts is not available." }],
+					details: {},
+				};
+			}
+			const artifacts = await boardOps.listArtifacts(chat_id);
+			if (artifacts.length === 0) {
+				return {
+					content: [{ type: "text" as const, text: `No artifacts on chat ${chat_id}.` }],
+					details: {},
+				};
+			}
+			const lines = artifacts.map(
+				(a) => `- ${a.label ?? a.path} (${a.mimeType}) path=${a.path}`,
+			);
+			return { content: [{ type: "text" as const, text: lines.join("\n") }], details: {} };
 		},
 	};
 
@@ -200,7 +384,12 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 			const memories = loadSpecificMemories(project, filenames);
 			if (memories.length === 0) {
 				return {
-					content: [{ type: "text" as const, text: `No matching memories found for project "${project}".` }],
+					content: [
+						{
+							type: "text" as const,
+							text: `No matching memories found for project "${project}".`,
+						},
+					],
 					details: {},
 				};
 			}
@@ -214,7 +403,8 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 	const listProjectMemoriesTool: ToolDefinition = {
 		name: "list_project_memories",
 		label: "List Project Memories",
-		description: "List available memory files for a project (filenames and summaries). Use this to decide which memories to load.",
+		description:
+			"List available memory files for a project (filenames and summaries). Use this to decide which memories to load.",
 		parameters: Type.Object({
 			project: Type.String({ description: "Project name" }),
 		}),
@@ -226,12 +416,18 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 			const memories = listProjectMemories(project);
 			if (memories.length === 0) {
 				return {
-					content: [{ type: "text" as const, text: `No memories found for project "${project}".` }],
+					content: [
+						{
+							type: "text" as const,
+							text: `No memories found for project "${project}".`,
+						},
+					],
 					details: {},
 				};
 			}
 			const lines = memories.map(
-				(m) => `- **${m.filename}**: ${m.summary}${m.tags.length > 0 ? ` [${m.tags.join(", ")}]` : ""}`,
+				(m) =>
+					`- **${m.filename}**: ${m.summary}${m.tags.length > 0 ? ` [${m.tags.join(", ")}]` : ""}`,
 			);
 			return { content: [{ type: "text" as const, text: lines.join("\n") }], details: {} };
 		},
@@ -242,6 +438,9 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 		listChatsTool,
 		startChatTool,
 		checkChatStatusTool,
+		runGateTool,
+		attachArtifactTool,
+		listArtifactsTool,
 		listProjectsTool,
 		loadMemoryTool,
 		listProjectMemoriesTool,

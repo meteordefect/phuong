@@ -1,6 +1,6 @@
 import * as Collapsible from "@radix-ui/react-collapsible";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { ChevronDown, ChevronRight, ChevronUp, Ellipsis, Maximize2, MessageSquare, Minimize2, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronUp, Ellipsis, MessageSquare, Plus } from "lucide-react";
 import { type MouseEvent as ReactMouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ClineIcon } from "@/components/ui/cline-icon";
@@ -40,7 +40,7 @@ export function ProjectNavigationPanel({
 	activeSection,
 	onActiveSectionChange,
 	canShowAgentSection,
-	agentSectionContent,
+	agentSectionContent: _agentSectionContent,
 	chatsByProject,
 	selectedTaskId,
 	onSelectProject,
@@ -105,22 +105,13 @@ export function ProjectNavigationPanel({
 	const COLLAPSE_THRESHOLD = 120;
 	const MIN_EXPANDED = 180;
 	const MAX_WIDTH = 400;
-	const EXPANDED_PHUONG_WIDTH = 600;
-	const [isPhuongExpanded, setIsPhuongExpanded] = useState(false);
-	const isAgentExpanded = isPhuongExpanded && activeSection === "agent";
 	const startDrag = useCallback((e: ReactMouseEvent) => {
 		e.preventDefault();
-		if (isPhuongExpanded) {
-			setIsPhuongExpanded(false);
-			setSidebarWidth(MAX_WIDTH);
-			dragRef.current = { startX: e.clientX, startWidth: MAX_WIDTH };
-		} else {
-			dragRef.current = { startX: e.clientX, startWidth: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth };
-		}
+		dragRef.current = { startX: e.clientX, startWidth: isCollapsed ? COLLAPSED_WIDTH : sidebarWidth };
 		setIsDragging(true);
 		document.body.style.userSelect = "none";
 		document.body.style.cursor = "ew-resize";
-	}, [sidebarWidth, isCollapsed, isPhuongExpanded]);
+	}, [sidebarWidth, isCollapsed]);
 	useEffect(() => {
 		if (!isDragging) return;
 		const onMouseMove = (e: MouseEvent) => {
@@ -144,12 +135,6 @@ export function ProjectNavigationPanel({
 		window.addEventListener("mouseup", onMouseUp);
 		return () => { window.removeEventListener("mousemove", onMouseMove); window.removeEventListener("mouseup", onMouseUp); };
 	}, [isDragging]);
-
-	useEffect(() => {
-		if (activeSection !== "agent") {
-			setIsPhuongExpanded(false);
-		}
-	}, [activeSection]);
 
 	const removeProjectDialog = (
 		<AlertDialog
@@ -230,18 +215,6 @@ export function ProjectNavigationPanel({
 					<div className="grid grid-cols-2 gap-1">
 						<button
 							type="button"
-							onClick={() => onActiveSectionChange("projects")}
-							className={cn(
-								"cursor-pointer rounded-sm px-2 py-1 text-xs font-medium",
-								activeSection === "projects"
-									? "bg-surface-4 text-text-primary"
-									: "text-text-secondary hover:text-text-primary",
-							)}
-						>
-							Projects
-						</button>
-						<button
-							type="button"
 							onClick={() => onActiveSectionChange("agent")}
 							disabled={!canShowAgentSection}
 							className={cn(
@@ -252,87 +225,78 @@ export function ProjectNavigationPanel({
 								!canShowAgentSection ? "cursor-not-allowed opacity-50" : null,
 							)}
 						>
-							Phuong
+							Hermes
+						</button>
+						<button
+							type="button"
+							onClick={() => onActiveSectionChange("projects")}
+							className={cn(
+								"cursor-pointer rounded-sm px-2 py-1 text-xs font-medium",
+								activeSection === "projects"
+									? "bg-surface-4 text-text-primary"
+									: "text-text-secondary hover:text-text-primary",
+							)}
+						>
+							Dashboard
 						</button>
 					</div>
 				</div>
 				{activeSection === "agent" && !isMobile ? (
 					<div className="flex items-start gap-2" style={{ padding: "8px 4px 0" }}>
 						<p className="flex-1 text-text-tertiary text-xs">
-							Orchestrate across projects: plan work, route to agent chats. Phuong can read project memory when configured.
+							Conduit mode. Talk to Hermes in the main panel. Click a chat below to watch (read-only).
 						</p>
-						<Button
-							variant="ghost"
-							size="sm"
-							icon={isPhuongExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-							onClick={() => setIsPhuongExpanded((prev) => !prev)}
-							aria-label={isPhuongExpanded ? "Collapse panel" : "Expand panel"}
-						/>
 					</div>
 				) : null}
 			</div>
 
-			{activeSection === "projects" ? (
-				<>
-					<div
-						className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col gap-1"
-						style={{ padding: "4px 12px" }}
-					>
-						{sortedProjects.length === 0 && isLoadingProjects ? (
-							<div style={{ padding: "4px 0" }}>
-								{Array.from({ length: 3 }).map((_, index) => (
-									<ProjectRowSkeleton key={`project-skeleton-${index}`} />
-								))}
-							</div>
-						) : null}
-
-						{sortedProjects.map((project) => (
-							<ProjectRow
-								key={project.id}
-								project={project}
-								isCurrent={currentProjectId === project.id}
-								removingProjectId={removingProjectId}
-								chats={chatsByProject[project.id] ?? []}
-								selectedTaskId={currentProjectId === project.id ? selectedTaskId : null}
-								onSelect={handleProjectSelect}
-								onSelectAgentChat={handleAgentChatSelect}
-								onCreateNewChat={handleNewChat}
-								onRemove={(projectId) => {
-									const found = sortedProjects.find((item) => item.id === projectId);
-									if (!found) {
-										return;
-									}
-									setPendingProjectRemoval(found);
-								}}
-							/>
+			<div
+				className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col gap-1"
+				style={{ padding: "4px 12px" }}
+			>
+				{sortedProjects.length === 0 && isLoadingProjects ? (
+					<div style={{ padding: "4px 0" }}>
+						{Array.from({ length: 3 }).map((_, index) => (
+							<ProjectRowSkeleton key={`project-skeleton-${index}`} />
 						))}
+					</div>
+				) : null}
 
-						{!isLoadingProjects ? (
-							<button
-								type="button"
-								className="kb-project-row flex cursor-pointer items-center gap-1.5 rounded-md text-text-secondary hover:text-text-primary"
-								style={{ padding: "6px 8px" }}
-								onClick={onAddProject}
-								disabled={removingProjectId !== null}
-							>
-								<Plus size={14} className="shrink-0" />
-								<span className="text-sm">Add Project</span>
-							</button>
-						) : null}
-					</div>
-					{!isMobile ? <ShortcutsCard /> : null}
-				</>
-			) : (
-				<div className="flex flex-1 min-h-0 flex-col">
-					<div className="flex flex-1 min-h-0 overflow-hidden bg-surface-1 px-2 pb-2 pt-1">
-						{agentSectionContent ?? (
-							<div className="flex w-full items-center justify-center rounded-md border border-border bg-surface-2 px-3 text-center text-sm text-text-secondary">
-								Select a project to use the agent.
-							</div>
-						)}
-					</div>
-				</div>
-			)}
+				{sortedProjects.map((project) => (
+					<ProjectRow
+						key={project.id}
+						project={project}
+						isCurrent={currentProjectId === project.id}
+						removingProjectId={removingProjectId}
+						chats={chatsByProject[project.id] ?? []}
+						selectedTaskId={currentProjectId === project.id ? selectedTaskId : null}
+						onSelect={handleProjectSelect}
+						onSelectAgentChat={handleAgentChatSelect}
+						onCreateNewChat={handleNewChat}
+						onRemove={(projectId) => {
+							const found = sortedProjects.find((item) => item.id === projectId);
+							if (!found) {
+								return;
+							}
+							setPendingProjectRemoval(found);
+						}}
+					/>
+				))}
+
+				{!isLoadingProjects ? (
+					<button
+						type="button"
+						className="kb-project-row flex cursor-pointer items-center gap-1.5 rounded-md text-text-secondary hover:text-text-primary"
+						style={{ padding: "6px 8px" }}
+						onClick={onAddProject}
+						disabled={removingProjectId !== null}
+					>
+						<Plus size={14} className="shrink-0" />
+						<span className="text-sm">Add Project</span>
+					</button>
+				) : null}
+			</div>
+			{!isMobile ? <ShortcutsCard /> : null}
 		</>
 	);
 
@@ -406,9 +370,9 @@ export function ProjectNavigationPanel({
 			<aside
 				className="flex flex-col min-h-0 overflow-hidden bg-surface-1 relative shrink-0"
 				style={{
-					width: isAgentExpanded ? EXPANDED_PHUONG_WIDTH : sidebarWidth,
+					width: sidebarWidth,
 					minWidth: MIN_EXPANDED,
-					maxWidth: isAgentExpanded ? EXPANDED_PHUONG_WIDTH : MAX_WIDTH,
+					maxWidth: MAX_WIDTH,
 					borderRight: "1px solid var(--color-divider)",
 					transition: isDragging ? undefined : "width 200ms ease, max-width 200ms ease",
 				}}

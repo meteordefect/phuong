@@ -81,6 +81,8 @@ export interface StartTaskSessionRequest {
 	startInPlanMode?: boolean;
 	resumeFromTrash?: boolean;
 	oneShotGitAction?: boolean;
+	/** Optional per-chat model override from Hermes tier routing. */
+	model?: string;
 	cols?: number;
 	rows?: number;
 	env?: Record<string, string | undefined>;
@@ -285,6 +287,7 @@ export class TerminalSessionManager implements TerminalSessionService {
 			images: request.images,
 			startInPlanMode: request.startInPlanMode,
 			resumeFromTrash: request.resumeFromTrash,
+			model: request.model,
 			env: request.env,
 			workspaceId: request.workspaceId,
 		});

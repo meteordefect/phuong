@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { access } from "node:fs/promises";
+import { isAbsolute, relative, resolve, sep } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { BoardOperations } from "../manager/phuong-tools.js";
 import { getAvailableModels, getSessionStats, getActiveTurn } from "../manager/phuong-session.js";
@@ -6,9 +10,16 @@ import { listSessions, loadSession } from "../manager/session-history.js";
 import { parseTaskAgentStatus } from "../manager/task-status-protocol.js";
 import { moveTaskToColumn } from "../core/task-board-mutations.js";
 import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint.js";
-import { loadWorkspaceContext, loadWorkspaceState, mutateWorkspaceState } from "../state/workspace-state.js";
-import type { RuntimeBoardCard, RuntimeBoardData } from "../core/api-contract.js";
+import { loadWorkspaceContext, mutateWorkspaceState } from "../state/workspace-state.js";
+import type {
+	RuntimeBoardCard,
+	RuntimeBoardData,
+	RuntimeTaskArtifact,
+	RuntimeTaskTier,
+} from "../core/api-contract.js";
 import type { RuntimeAppRouter } from "./app-router.js";
+
+const execFileAsync = promisify(execFile);
 
 function createRuntimeTrpcClient(workspaceId: string | null) {
 	return createTRPCProxyClient<RuntimeAppRouter>({
@@ -49,12 +60,19 @@ async function ensureRuntimeWorkspace(workspacePath: string): Promise<{ workspac
 	};
 }
 
+function isPathInsideWorktree(worktreePath: string, candidatePath: string): boolean {
+	const base = resolve(worktreePath);
+	const candidate = resolve(candidatePath);
+	const relativePath = relative(base, candidate);
+	return relativePath !== "" && !relativePath.startsWith("..") && !isAbsolute(relativePath);
+}
+
 export function createBoardOperations(
 	workspacePath: string,
 	onBoardMutated?: () => void,
 ): BoardOperations {
 	return {
-		createCard: async (prompt: string, baseRef?: string) => {
+		createCard: async (prompt: string, baseRef?: string, options?: { model?: string; tier?: RuntimeTaskTier }) => {
 			const cardId = randomUUID().slice(0, 8);
 			const now = Date.now();
 			const newCard: RuntimeBoardCard = {
@@ -62,6 +80,8 @@ export function createBoardOperations(
 				prompt,
 				startInPlanMode: false,
 				baseRef: baseRef || "HEAD",
+				model: options?.model,
+				tier: options?.tier,
 				createdAt: now,
 				updatedAt: now,
 			};
@@ -76,14 +96,21 @@ export function createBoardOperations(
 			});
 
 			onBoardMutated?.();
-			return { cardId };
+			return { cardId, model: options?.model, tier: options?.tier };
 		},
 
 		listCards: async () => {
 			const runtimeWorkspace = await ensureRuntimeWorkspace(workspacePath);
 			const runtimeClient = createRuntimeTrpcClient(runtimeWorkspace.workspaceId);
 			const runtimeState = await runtimeClient.workspace.getState.query();
-			const cards: { id: string; prompt: string; column: string; sessionState?: string }[] = [];
+			const cards: {
+				id: string;
+				prompt: string;
+				column: string;
+				sessionState?: string;
+				model?: string;
+				tier?: string;
+			}[] = [];
 			for (const col of runtimeState.board.columns) {
 				for (const card of col.cards) {
 					const session = runtimeState.sessions[card.id];
@@ -92,6 +119,8 @@ export function createBoardOperations(
 						prompt: card.prompt,
 						column: col.id,
 						sessionState: session?.state,
+						model: card.model,
+						tier: card.tier,
 					});
 				}
 			}
@@ -157,6 +186,7 @@ export function createBoardOperations(
 						startInPlanMode: taskRecord.task.startInPlanMode,
 						images: taskRecord.task.images,
 						baseRef: taskRecord.task.baseRef,
+						model: taskRecord.task.model,
 					});
 					if (!started.ok || !started.summary) {
 						return {
@@ -187,6 +217,119 @@ export function createBoardOperations(
 				const message = error instanceof Error ? error.message : String(error);
 				return { ok: false, error: message };
 			}
+		},
+
+		runGate: async (taskId: string, command: string) => {
+			try {
+				const runtimeWorkspace = await ensureRuntimeWorkspace(workspacePath);
+				const runtimeClient = createRuntimeTrpcClient(runtimeWorkspace.workspaceId);
+				const runtimeState = await runtimeClient.workspace.getState.query();
+				const taskRecord = findTaskRecord(runtimeState, taskId);
+				if (!taskRecord) {
+					return { ok: false, exitCode: null, output: "", error: `Task "${taskId}" was not found.` };
+				}
+				const ensured = await runtimeClient.workspace.ensureWorktree.mutate({
+					taskId: taskRecord.task.id,
+					baseRef: taskRecord.task.baseRef,
+				});
+				if (!ensured.ok || !ensured.path) {
+					return {
+						ok: false,
+						exitCode: null,
+						output: "",
+						error: ensured.error ?? "Could not resolve chat worktree.",
+					};
+				}
+				try {
+					const { stdout, stderr } = await execFileAsync("bash", ["-lc", command], {
+						cwd: ensured.path,
+						timeout: 10 * 60 * 1000,
+						maxBuffer: 2 * 1024 * 1024,
+						env: process.env,
+					});
+					const output = `${stdout}${stderr ? `\n${stderr}` : ""}`.trim();
+					return { ok: true, exitCode: 0, output };
+				} catch (error) {
+					const err = error as {
+						code?: number | string;
+						stdout?: string;
+						stderr?: string;
+						message?: string;
+					};
+					const exitCode = typeof err.code === "number" ? err.code : 1;
+					const output = `${err.stdout ?? ""}${err.stderr ? `\n${err.stderr}` : ""}`.trim() || err.message || String(error);
+					return { ok: true, exitCode, output };
+				}
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return { ok: false, exitCode: null, output: "", error: message };
+			}
+		},
+
+		attachArtifact: async (taskId, artifactInput) => {
+			try {
+				const runtimeWorkspace = await ensureRuntimeWorkspace(workspacePath);
+				const runtimeClient = createRuntimeTrpcClient(runtimeWorkspace.workspaceId);
+				const runtimeState = await runtimeClient.workspace.getState.query();
+				const taskRecord = findTaskRecord(runtimeState, taskId);
+				if (!taskRecord) {
+					return { ok: false, error: `Task "${taskId}" was not found.` };
+				}
+				const ensured = await runtimeClient.workspace.ensureWorktree.mutate({
+					taskId: taskRecord.task.id,
+					baseRef: taskRecord.task.baseRef,
+				});
+				if (!ensured.ok || !ensured.path) {
+					return { ok: false, error: ensured.error ?? "Could not resolve chat worktree." };
+				}
+				const worktreePath = ensured.path;
+				const resolvedPath = resolve(worktreePath, artifactInput.path);
+				if (!isPathInsideWorktree(worktreePath, resolvedPath)) {
+					return { ok: false, error: "Artifact path must stay inside the chat worktree." };
+				}
+				try {
+					await access(resolvedPath);
+				} catch {
+					return { ok: false, error: `Artifact not found at ${artifactInput.path}` };
+				}
+				const relativePath = relative(worktreePath, resolvedPath) || artifactInput.path;
+				const artifact: RuntimeTaskArtifact = {
+					id: artifactInput.id ?? randomUUID().slice(0, 8),
+					path: relativePath.split(sep).join("/"),
+					mimeType: artifactInput.mimeType,
+					label: artifactInput.label,
+					createdAt: Date.now(),
+				};
+
+				await mutateWorkspaceState(runtimeWorkspace.workspacePath, (state) => {
+					const board: RuntimeBoardData = JSON.parse(JSON.stringify(state.board));
+					for (const column of board.columns) {
+						const card = column.cards.find((candidate) => candidate.id === taskId);
+						if (!card) {
+							continue;
+						}
+						const existing = card.artifacts ?? [];
+						card.artifacts = [...existing.filter((item) => item.path !== artifact.path), artifact];
+						card.updatedAt = Date.now();
+						return { board, save: true, value: artifact };
+					}
+					return { board: state.board, save: false, value: null };
+				});
+
+				onBoardMutated?.();
+				return { ok: true, artifact };
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return { ok: false, error: message };
+			}
+		},
+
+		listArtifacts: async (taskId: string) => {
+			const runtimeWorkspace = await ensureRuntimeWorkspace(workspacePath);
+			const runtimeClient = createRuntimeTrpcClient(runtimeWorkspace.workspaceId);
+			const runtimeState = await runtimeClient.workspace.getState.query();
+			const taskRecord = findTaskRecord(runtimeState, taskId);
+			return taskRecord?.task.artifacts ?? [];
 		},
 	};
 }

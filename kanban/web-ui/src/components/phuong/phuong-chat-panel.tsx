@@ -35,11 +35,13 @@ interface LoadedSession {
 
 interface PhuongChatPanelProps {
 	workspaceId: string | null;
+	/** Full-page conduit vs compact sidebar agent panel. */
+	variant?: "sidebar" | "conduit";
 }
 
 type ViewMode = "chat" | "history" | "viewing-session";
 
-export function PhuongChatPanel({ workspaceId }: PhuongChatPanelProps) {
+export function PhuongChatPanel({ workspaceId, variant = "sidebar" }: PhuongChatPanelProps) {
 	const [messages, setMessages] = useState<PhuongMessage[]>([]);
 	const [input, setInput] = useState("");
 	const [isStreaming, setIsStreaming] = useState(false);
@@ -397,7 +399,7 @@ export function PhuongChatPanel({ workspaceId }: PhuongChatPanelProps) {
 	}
 
 	return (
-		<div className="flex h-full min-w-0 flex-col">
+		<div className={cn("flex h-full min-w-0 flex-col", variant === "conduit" && "bg-surface-0")}>
 			<div className="flex items-center justify-end gap-1 border-b border-border px-2 py-1">
 				{messages.length > 0 && (
 					<button
@@ -420,10 +422,12 @@ export function PhuongChatPanel({ workspaceId }: PhuongChatPanelProps) {
 					<History size={14} />
 				</button>
 			</div>
-			<div className="flex-1 min-w-0 overflow-y-auto px-2 py-2 space-y-3">
+			<div className={cn("flex-1 min-w-0 overflow-y-auto py-2 space-y-3", variant === "conduit" ? "px-4" : "px-2")}>
 				{messages.length === 0 && (
 					<div className="flex h-full items-center justify-center text-center text-xs text-text-tertiary px-4">
-						Ask Phuong to plan work, break down features, or manage your board.
+						{variant === "conduit"
+							? "Tell Hermes what to ship. She plans, routes Pi chats, verifies, and reports — you can watch from Dashboard without interjecting."
+							: "Ask Hermes to plan work, route chats, or check status. Dashboard is optional."}
 					</div>
 				)}
 				{messages.map((msg, i) => (
@@ -431,7 +435,7 @@ export function PhuongChatPanel({ workspaceId }: PhuongChatPanelProps) {
 				))}
 				<div ref={messagesEndRef} />
 			</div>
-			<div className="border-t border-border p-2">
+			<div className={cn("border-t border-border", variant === "conduit" ? "p-3" : "p-2")}>
 				{availableModels.length > 1 && (
 					<div className="flex items-center gap-1.5 mb-1.5">
 						<div className="relative">
@@ -460,7 +464,7 @@ export function PhuongChatPanel({ workspaceId }: PhuongChatPanelProps) {
 						value={input}
 						onChange={(e) => setInput(e.target.value)}
 						onKeyDown={handleKeyDown}
-						placeholder="Ask Phuong to plan, create, or manage tasks"
+						placeholder="Message Hermes — plan, route, verify, ship"
 						rows={1}
 						disabled={isStreaming}
 						className="flex-1 resize-none bg-transparent text-sm text-text-primary placeholder:text-text-tertiary outline-none disabled:opacity-50"

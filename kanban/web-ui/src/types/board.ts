@@ -43,6 +43,15 @@ export interface BoardCard {
 	autoReviewEnabled?: boolean;
 	autoReviewMode?: TaskAutoReviewMode;
 	images?: TaskImage[];
+	model?: string;
+	tier?: "T0" | "T1" | "T2" | "T3";
+	artifacts?: Array<{
+		id: string;
+		path: string;
+		mimeType: string;
+		label?: string;
+		createdAt?: number;
+	}>;
 	baseRef: string;
 	createdAt: number;
 	updatedAt: number;
