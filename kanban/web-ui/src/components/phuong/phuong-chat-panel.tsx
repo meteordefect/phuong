@@ -426,8 +426,8 @@ export function PhuongChatPanel({ workspaceId, variant = "sidebar" }: PhuongChat
 				{messages.length === 0 && (
 					<div className="flex h-full items-center justify-center text-center text-xs text-text-tertiary px-4">
 						{variant === "conduit"
-							? "Tell Hermes what to ship. She plans, routes Pi chats, verifies, and reports — you can watch from Dashboard without interjecting."
-							: "Ask Hermes to plan work, route chats, or check status. Dashboard is optional."}
+							? "Tell Phuong what to ship. She plans, routes Pi chats, verifies, and reports — you can watch from Dashboard without interjecting."
+							: "Ask Phuong to plan work, route chats, or check status. Dashboard is optional."}
 					</div>
 				)}
 				{messages.map((msg, i) => (
@@ -464,7 +464,7 @@ export function PhuongChatPanel({ workspaceId, variant = "sidebar" }: PhuongChat
 						value={input}
 						onChange={(e) => setInput(e.target.value)}
 						onKeyDown={handleKeyDown}
-						placeholder="Message Hermes — plan, route, verify, ship"
+						placeholder="Message Phuong — plan, route, verify, ship"
 						rows={1}
 						disabled={isStreaming}
 						className="flex-1 resize-none bg-transparent text-sm text-text-primary placeholder:text-text-tertiary outline-none disabled:opacity-50"

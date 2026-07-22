@@ -30,7 +30,7 @@ describe("Phuong Phase A orchestration protocol", () => {
 		expect(prompt).toContain("Max **3** dispatches");
 		expect(prompt).toContain("NEEDS_CONTEXT");
 		expect(prompt).toContain("never implement code yourself");
-		expect(prompt).toContain("Hermes");
+		expect(prompt).toContain("Phuong");
 		expect(prompt).toContain("model routing");
 		expect(prompt).toContain("run_gate");
 		expect(prompt).toContain("attach_artifact");

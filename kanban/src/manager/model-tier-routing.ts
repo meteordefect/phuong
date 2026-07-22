@@ -1,7 +1,7 @@
 import type { RuntimeTaskTier } from "../core/api-contract.js";
 
 /**
- * Maps Hermes capability tiers to Pi model IDs.
+ * Maps Phuong capability tiers to Pi model IDs.
  * Override via env on the VPS without code changes.
  */
 export function resolveModelForTier(tier: RuntimeTaskTier | string | undefined): string | undefined {

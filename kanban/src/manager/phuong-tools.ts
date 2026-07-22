@@ -115,7 +115,7 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 				content: [
 					{
 						type: "text" as const,
-						text: `Chat created and started (${result.cardId}).${tierNote}${modelNote} The Pi agent is now working on it under this project. The user can watch it from the Dashboard (read-only) or stay in Hermes chat.`,
+						text: `Chat created and started (${result.cardId}).${tierNote}${modelNote} The Pi agent is now working on it under this project. The user can watch it from the Dashboard (read-only) or stay in Phuong chat.`,
 					},
 				],
 				details: {},

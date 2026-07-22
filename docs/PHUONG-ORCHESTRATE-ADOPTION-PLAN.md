@@ -135,11 +135,11 @@ This upgrade assumes those exist and builds protocol discipline on top.
 | T2 | Complex | `PHUONG_MODEL_T2` / Kimi K3 |
 | T3 | Frontier | `PHUONG_MODEL_T3` / Kimi K3 |
 
-Hermes always passes `tier` on `create_chat`. Explicit `model` overrides the map.
+Phuong always passes `tier` on `create_chat`. Explicit `model` overrides the map.
 
-Also shipped with Hermes-first UI:
+Also shipped with Phuong-first conduit UI:
 
-- Hermes conduit as default home (Dashboard optional)
+- Phuong conduit as default home (Dashboard optional)
 - Watch-only worker chats (Interject unlock)
 - `run_gate`, `attach_artifact`, `list_artifacts`
 

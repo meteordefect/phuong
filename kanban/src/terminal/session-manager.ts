@@ -81,7 +81,7 @@ export interface StartTaskSessionRequest {
 	startInPlanMode?: boolean;
 	resumeFromTrash?: boolean;
 	oneShotGitAction?: boolean;
-	/** Optional per-chat model override from Hermes tier routing. */
+	/** Optional per-chat model override from Phuong tier routing. */
 	model?: string;
 	cols?: number;
 	rows?: number;

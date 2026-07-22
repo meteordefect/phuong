@@ -1,22 +1,24 @@
-# Phuong / Hermes
+# Phuong
 
 <p align="center">
-  <img src="./phuong.png" alt="Hermes and dashboard running agent chats" width="100%" />
+  <img src="./phuong.png" alt="Phuong dashboard running agent chats" width="100%" />
 </p>
 
 Always-on AI project manager on your VPS, built on a [Kanban](https://github.com/cline/kanban) fork.
 
-**Hermes** (Phuong) is the conduit: you talk to her from phone or desktop and she plans, routes Pi worker chats, verifies, and reports. **Dashboard** is optional — project/chat ledger for watching work and E2E artifacts without interjecting. Either entry is enough.
+**Phuong** is the conduit: you talk to her from phone or desktop and she plans, routes Pi worker chats, verifies, and reports. **Dashboard** is optional — project/chat ledger for watching work and E2E artifacts without interjecting. Either entry is enough.
+
+This stack is its own product/deploy — keep it isolated from any other agent systems.
 
 ## Status
 
-Ready to deploy to a new Hetzner VPS (reuse existing deploy keys). See `docs/DEPLOY-HETZNER.md` and `docs/HERMES.md`.
+Ready to deploy to a new Hetzner VPS (reuse existing deploy keys). See `docs/DEPLOY-HETZNER.md` and `docs/PHUONG-CONDUIT.md`.
 
 ## Dual entry
 
 | Mode | Purpose |
 |------|---------|
-| **Hermes** (default home) | Talk only here. She creates project chats, picks models by tier (cheap vs strong), runs gates, attaches screenshots, reports back. |
+| **Phuong** (default home) | Talk only here. She creates project chats, picks models by tier (cheap vs strong), runs gates, attaches screenshots, reports back. |
 | **Dashboard** | Browse projects → chats, watch Pi sessions read-only, view artifacts. Interject only if you unlock it. |
 
 There is no kanban board UI. Board columns still back chat sessions internally.
@@ -24,7 +26,7 @@ There is no kanban board UI. Board columns still back chat sessions internally.
 ## Architecture
 
 - **Kanban fork** — runtime, worktrees, agent sessions, git, tRPC
-- **Hermes (Phuong)** — orchestrator (plan, route, verify, memory)
+- **Phuong** — orchestrator (plan, route, verify, memory)
 - **pi** — workers in worktrees; model per chat via tier (`T0`…`T3`)
 - **Memory** — external git repo (`base-control`)
 - **Auth** — Clerk
@@ -32,7 +34,7 @@ There is no kanban board UI. Board columns still back chat sessions internally.
 
 ### Worker chats
 
-1. Hermes (or Dashboard “+ New Chat”) creates a task card
+1. Phuong (or Dashboard “+ New Chat”) creates a task card
 2. Runtime creates a git worktree
 3. Pi starts with the chat’s model (`PHUONG_MODEL_T*`)
 4. Terminal streams to the browser (watch-only by default)
@@ -46,14 +48,14 @@ PHUONG_MODEL_T1=kimi-coding/kimi-k2.7   # standard
 PHUONG_MODEL_T2=kimi-coding/kimi-k3     # complex
 PHUONG_MODEL_T3=kimi-coding/kimi-k3     # high-risk
 KIMI_API_KEY=...
-DEFAULT_MODEL=...   # Hermes's own model
+DEFAULT_MODEL=...   # Phuong's own model
 ```
 
 ## Docs
 
 | Document | Purpose |
 |----------|---------|
-| `docs/HERMES.md` | Product model: conduit + optional dashboard |
+| `docs/PHUONG-CONDUIT.md` | Product model: conduit + optional dashboard |
 | `docs/DEPLOY-HETZNER.md` | New Hetzner VPS deploy (reuse keys) |
 | `docs/BUILD-RUNSHEET.md` | Build phases |
 | `docs/PHUONG-ORCHESTRATE-ADOPTION-PLAN.md` | Orchestration protocol |

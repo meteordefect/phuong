@@ -1,4 +1,6 @@
-# Deploy Phuong / Hermes to a new Hetzner VPS
+# Deploy Phuong to a new Hetzner VPS
+
+Own control plane for **this** Phuong stack only. Do not install onto a host that already runs another agent product under shared paths/ports.
 
 Use existing SSH deploy keys from prior FriendLabs deploys when possible.
 
@@ -6,7 +8,7 @@ Use existing SSH deploy keys from prior FriendLabs deploys when possible.
 
 - Hetzner Cloud API token
 - SSH key already in Hetzner **or** local key at `~/.ssh/friendlabs-deploy` (see `deploy/ansible/inventory.ini.example`)
-- Domain DNS ready (optional but recommended for TLS)
+- Domain DNS ready (optional but recommended for TLS) — use a **Phuong-specific** hostname
 - Secrets: Clerk, `KIMI_API_KEY`, `ZAI_API_KEY` (optional), GitHub token if needed
 
 ## 1. Provision the server
@@ -17,6 +19,8 @@ cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 # set hcloud_token, and either:
 #   use_existing_ssh_key = "your-existing-hetzner-key-name"
 # or ssh_public_key = "~/.ssh/friendlabs-deploy.pub"
+#
+# Prefer a dedicated server_name, e.g. phuong-control-plane (default)
 
 ./deploy.sh terraform-init
 ./deploy.sh terraform-apply
@@ -33,15 +37,17 @@ cd deploy
 
 cp .env.example .env   # if present; otherwise create from previous VPS .env
 # Required highlights:
-# DOMAIN=your.host
+# DOMAIN=phuong.your.host   # Phuong-only hostname
 # KIMI_API_KEY=...
 # PHUONG_MODEL_T0=kimi-coding/kimi-k2.7
 # PHUONG_MODEL_T2=kimi-coding/kimi-k3
 # PHUONG_MODEL_T3=kimi-coding/kimi-k3
-# DEFAULT_MODEL=...   # Hermes's own model
+# DEFAULT_MODEL=...   # Phuong's own model
 # SUBAGENT_MODEL=...  # fallback for T1 / unset tiers
 # Clerk publishable + secret keys for the UI build
 ```
+
+Install under `/opt/phuong` (Ansible default). Do not reuse another product's data directories.
 
 ## 3. Deploy app
 
@@ -57,16 +63,16 @@ Playbooks live under `deploy/ansible/playbooks/` (`kanban-deploy.yml`, `site.yml
 ## 4. Smoke check
 
 1. Open `https://$DOMAIN` (or server IP) — Clerk login.
-2. **Hermes** is the default home: message her to create work.
+2. **Phuong** is the default home: message her to create work.
 3. Open **Dashboard**, click a chat — watch-only terminal, no accidental interject.
 4. Confirm Pi starts with tier models (`journalctl -u kanban` / agent logs).
 
 ## Dual access reminder
 
-- **Hermes** = conduit (talk only to her)
+- **Phuong** = conduit (talk only to her)
 - **Dashboard** = optional project/chat ledger + live watch + artifacts
 
-Either path is enough; both always stay in sync because Hermes writes the same project chats the Dashboard lists.
+Either path is enough; both always stay in sync because Phuong writes the same project chats the Dashboard lists.
 
 ## Reusing previous keys
 

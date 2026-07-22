@@ -25,11 +25,11 @@ export interface AgentTerminalPanelProps {
 	taskId: string;
 	workspaceId: string | null;
 	terminalEnabled?: boolean;
-	/** Watch-only: no keyboard input to the agent (Hermes owns the work). */
+	/** Watch-only: no keyboard input to the agent (Phuong owns the work). */
 	readOnly?: boolean;
 	/** Optional watch-mode banner and unlock control. */
 	onRequestInterject?: () => void;
-	onReturnToHermes?: () => void;
+	onReturnToPhuong?: () => void;
 	artifacts?: Array<{
 		id: string;
 		path: string;
@@ -186,7 +186,7 @@ function AgentTerminalPanelLayout({
 	onToggleExpand,
 	readOnly = false,
 	onRequestInterject,
-	onReturnToHermes,
+	onReturnToPhuong,
 	artifacts = [],
 	sessionControls,
 }: AgentTerminalPanelProps & { sessionControls: AgentTerminalSessionControls }): ReactElement {
@@ -217,15 +217,15 @@ function AgentTerminalPanelLayout({
 			{readOnly ? (
 				<div className="flex items-center justify-between gap-2 border-b border-border bg-surface-1 px-3 py-2">
 					<div className="min-w-0">
-						<p className="text-xs font-medium text-text-primary">Watching — Hermes is handling this</p>
+						<p className="text-xs font-medium text-text-primary">Watching — Phuong is handling this</p>
 						<p className="truncate text-[11px] text-text-tertiary">
 							Read-only view. You can observe the flow without interjecting.
 						</p>
 					</div>
 					<div className="flex shrink-0 items-center gap-2">
-						{onReturnToHermes ? (
-							<Button variant="ghost" size="sm" onClick={onReturnToHermes}>
-								Hermes
+						{onReturnToPhuong ? (
+							<Button variant="ghost" size="sm" onClick={onReturnToPhuong}>
+								Phuong
 							</Button>
 						) : null}
 						{onRequestInterject ? (

@@ -29,7 +29,7 @@ export interface AgentAdapterLaunchInput {
 	images?: RuntimeTaskImage[];
 	startInPlanMode?: boolean;
 	resumeFromTrash?: boolean;
-	/** Optional per-chat model override (Hermes tier routing). */
+	/** Optional per-chat model override (Phuong tier routing). */
 	model?: string;
 	env?: Record<string, string | undefined>;
 	workspaceId?: string;

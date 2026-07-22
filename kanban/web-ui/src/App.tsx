@@ -438,7 +438,7 @@ export default function App(): ReactElement {
 		setPendingNewChatStartId(created.task.id);
 	}, [board, defaultTaskBranchRef, setBoard]);
 
-	const handleReturnToHermes = useCallback(() => {
+	const handleReturnToPhuong = useCallback(() => {
 		setSelectedTaskId(null);
 		setHomeSidebarSection("agent");
 	}, []);
@@ -449,14 +449,14 @@ export default function App(): ReactElement {
 		runtimeProjectConfig,
 		board,
 		selectedTaskId,
-		homeSurfaceMode: homeSidebarSection === "agent" && !selectedTaskId ? "hermes" : "dashboard",
+		homeSurfaceMode: homeSidebarSection === "agent" && !selectedTaskId ? "conduit" : "dashboard",
 		taskSessions: sessions,
 		clineSessionContextVersion,
 		latestTaskChatMessage,
 		taskChatMessagesByTaskId,
 		onSessionSummary: upsertSession,
 		onCreateNewChat: handleCreateNewChat,
-		onReturnToHermes: handleReturnToHermes,
+		onReturnToPhuong: handleReturnToPhuong,
 	});
 	const { runningShortcutLabel, handleSelectShortcutLabel, handleRunShortcut, handleCreateShortcut } = useShortcutActions({
 		currentProjectId,

@@ -110,7 +110,7 @@ export const runtimeBoardCardSchema = z.object({
 	model: z.string().optional(),
 	/** Capability tier used for model routing (T0 light … T3 complex). */
 	tier: runtimeTaskTierSchema.optional(),
-	/** End-to-end screenshots and other artifacts Hermes or workers attach. */
+	/** End-to-end screenshots and other artifacts Phuong or workers attach. */
 	artifacts: z.array(runtimeTaskArtifactSchema).optional(),
 	baseRef: z.string(),
 	createdAt: z.number(),
@@ -750,7 +750,7 @@ export const runtimeTaskSessionStartRequestSchema = z.object({
 	mode: runtimeTaskSessionModeSchema.optional(),
 	resumeFromTrash: z.boolean().optional(),
 	oneShotGitAction: z.boolean().optional(),
-	/** Optional per-chat model override (Hermes tier routing). */
+	/** Optional per-chat model override (Phuong tier routing). */
 	model: z.string().optional(),
 	baseRef: z.string(),
 	cols: z.number().int().positive().optional(),

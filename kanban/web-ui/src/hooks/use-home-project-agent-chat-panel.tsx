@@ -1,4 +1,4 @@
-// Full-width home surface: Hermes conduit or watch-only project chats.
+// Full-width home surface: Phuong conduit or watch-only project chats.
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -20,7 +20,7 @@ import { findCardSelection } from "@/state/board-state";
 import { TERMINAL_THEME_COLORS } from "@/terminal/theme-colors";
 import type { BoardData } from "@/types";
 
-export type HomeSurfaceMode = "hermes" | "dashboard";
+export type HomeSurfaceMode = "conduit" | "dashboard";
 
 interface UseHomeProjectAgentChatPanelInput {
 	currentProjectId: string | null;
@@ -35,7 +35,7 @@ interface UseHomeProjectAgentChatPanelInput {
 	taskChatMessagesByTaskId: Record<string, RuntimeTaskChatMessage[]>;
 	onSessionSummary: (summary: RuntimeTaskSessionSummary) => void;
 	onCreateNewChat: () => void;
-	onReturnToHermes: () => void;
+	onReturnToPhuong: () => void;
 }
 
 export function useHomeProjectAgentChatPanel({
@@ -51,7 +51,7 @@ export function useHomeProjectAgentChatPanel({
 	taskChatMessagesByTaskId,
 	onSessionSummary,
 	onCreateNewChat,
-	onReturnToHermes,
+	onReturnToPhuong,
 }: UseHomeProjectAgentChatPanelInput): ReactElement | null {
 	const [interjectUnlocked, setInterjectUnlocked] = useState(false);
 
@@ -104,12 +104,12 @@ export function useHomeProjectAgentChatPanel({
 			return null;
 		}
 
-		// Hermes conduit: talk only to Hermes; she owns projects/chats.
-		if (homeSurfaceMode === "hermes" && !selectedTaskId) {
+		// Phuong conduit: talk only to Phuong; she owns projects/chats.
+		if (homeSurfaceMode === "conduit" && !selectedTaskId) {
 			return (
 				<div className="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden bg-surface-0">
 					<div className="border-b border-border bg-surface-1 px-4 py-2">
-						<p className="text-sm font-medium text-text-primary">Hermes</p>
+						<p className="text-sm font-medium text-text-primary">Phuong</p>
 						<p className="text-[12px] text-text-tertiary">
 							Your conduit. Ask for work and she routes Pi chats under projects. Open Dashboard to watch.
 						</p>
@@ -142,15 +142,15 @@ export function useHomeProjectAgentChatPanel({
 				<div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-3 bg-surface-0 px-6 text-center">
 					<p className="text-sm text-text-secondary">No chat selected.</p>
 					<p className="max-w-sm text-[12px] text-text-tertiary">
-						Pick a project chat to watch, or go to Hermes and let her create work for you.
+						Pick a project chat to watch, or go to Phuong and let her create work for you.
 					</p>
 					<div className="flex gap-2">
 						<button
 							type="button"
-							onClick={onReturnToHermes}
+							onClick={onReturnToPhuong}
 							className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 transition-opacity cursor-pointer"
 						>
-							Open Hermes
+							Open Phuong
 						</button>
 						<button
 							type="button"
@@ -177,7 +177,7 @@ export function useHomeProjectAgentChatPanel({
 					{watchOnly ? (
 						<div className="flex items-center justify-between gap-2 border-b border-border bg-surface-1 px-3 py-2">
 							<div className="min-w-0">
-								<p className="text-xs font-medium text-text-primary">Watching — Hermes is handling this</p>
+								<p className="text-xs font-medium text-text-primary">Watching — Phuong is handling this</p>
 								<p className="truncate text-[11px] text-text-tertiary">
 									Read-only by default. Interject only if you need to.
 								</p>
@@ -185,10 +185,10 @@ export function useHomeProjectAgentChatPanel({
 							<div className="flex shrink-0 gap-2">
 								<button
 									type="button"
-									onClick={onReturnToHermes}
+									onClick={onReturnToPhuong}
 									className="rounded-sm px-2 py-1 text-xs text-text-secondary hover:text-text-primary cursor-pointer"
 								>
-									Hermes
+									Phuong
 								</button>
 								<button
 									type="button"
@@ -250,7 +250,7 @@ export function useHomeProjectAgentChatPanel({
 				readOnly={watchOnly}
 				artifacts={artifacts}
 				onRequestInterject={() => setInterjectUnlocked(true)}
-				onReturnToHermes={onReturnToHermes}
+				onReturnToPhuong={onReturnToPhuong}
 				summary={summary}
 				onSummary={onSessionSummary}
 				showSessionToolbar={false}
@@ -273,7 +273,7 @@ export function useHomeProjectAgentChatPanel({
 		isClineAgent,
 		latestTaskChatMessage,
 		onCreateNewChat,
-		onReturnToHermes,
+		onReturnToPhuong,
 		onSessionSummary,
 		runtimeProjectConfig,
 		selectedAgentLabel,

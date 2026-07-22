@@ -225,7 +225,7 @@ export function ProjectNavigationPanel({
 								!canShowAgentSection ? "cursor-not-allowed opacity-50" : null,
 							)}
 						>
-							Hermes
+							Phuong
 						</button>
 						<button
 							type="button"
@@ -244,7 +244,7 @@ export function ProjectNavigationPanel({
 				{activeSection === "agent" && !isMobile ? (
 					<div className="flex items-start gap-2" style={{ padding: "8px 4px 0" }}>
 						<p className="flex-1 text-text-tertiary text-xs">
-							Conduit mode. Talk to Hermes in the main panel. Click a chat below to watch (read-only).
+							Conduit mode. Talk to Phuong in the main panel. Click a chat below to watch (read-only).
 						</p>
 					</div>
 				) : null}
