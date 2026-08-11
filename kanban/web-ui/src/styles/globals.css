@@ -255,7 +255,7 @@ body.kb-dependency-link-mode {
 
 .kb-project-row-selected,
 .kb-project-row-selected:hover {
-	background: #0084FF;
+	background: var(--color-accent);
 	color: #fff;
 }
 
