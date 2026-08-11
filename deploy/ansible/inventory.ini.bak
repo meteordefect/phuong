@@ -1,5 +1,5 @@
 [control_plane]
-phuong ansible_host=37.27.192.48
+phuong ansible_host=159.195.213.113
 
 [control_plane:vars]
 ansible_user=root

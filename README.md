@@ -12,7 +12,7 @@ This stack is its own product/deploy — keep it isolated from any other agent s
 
 ## Status
 
-Ready to deploy to a new Hetzner VPS (reuse existing deploy keys). See `docs/DEPLOY-HETZNER.md` and `docs/PHUONG-CONDUIT.md`.
+Deployed on netcup VPS `159.195.213.113` (HTTP). See `docs/DEPLOY-HETZNER.md` (same Ansible flow; Terraform/Hetzner optional) and `docs/PHUONG-CONDUIT.md`.
 
 ## Dual entry
 

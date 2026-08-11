@@ -90,3 +90,15 @@ ansible_ssh_private_key_file=~/.ssh/friendlabs-deploy
 ```
 
 Do **not** commit private keys or `.env` files.
+
+## Netcup (manual VPS, no Terraform)
+
+If the box is already provisioned (e.g. netcup Debian):
+
+1. Put your deploy private key at `~/.ssh/friendlabs-deploy` (or set `SSH_KEY`).
+2. Install the matching public key in `root`'s `authorized_keys` on the VPS.
+3. Create `deploy/ansible/inventory.ini` from the example and set `ansible_host` to the VPS IP.
+4. Copy `deploy/.env.example` → `deploy/.env` and fill Clerk + LLM keys. Leave `DOMAIN=` empty for plain HTTP on the IP; set `DOMAIN` + DNS for TLS.
+5. From `deploy/`: `./deploy.sh kanban`
+
+Current netcup target (Aug 2026): `159.195.213.113` / `v2202608386140495566.powersrv.de`.

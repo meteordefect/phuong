@@ -66,7 +66,7 @@
 
     - name: Copy .env to server
       copy:
-        src: "{{ playbook_dir }}/../../../.env"
+        src: "{{ playbook_dir }}/../../.env"
         dest: "{{ kanban_env_file }}"
         mode: '0600'
 
@@ -93,6 +93,12 @@
     - name: Install pi coding agent globally
       shell: npm install -g @mariozechner/pi-coding-agent
       when: pi_check.stdout == "missing"
+
+    - name: Ensure Kanban config directory exists
+      file:
+        path: /root/.cline/kanban
+        state: directory
+        mode: '0755'
 
     - name: Set pi as default Kanban agent
       copy:
