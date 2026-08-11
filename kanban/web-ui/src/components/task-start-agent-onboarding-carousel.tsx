@@ -48,7 +48,7 @@ interface OnboardingDoneResult {
 export const TASK_START_ONBOARDING_SLIDES: OnboardingSlide[] = [
 	{
 		kind: "media",
-		title: "Create tasks with Kanban",
+		title: "Create tasks with Phuong",
 		description:
 			"Press c to create a task yourself, or talk to Phuong in the sidebar to plan work for you. Phuong can break down features, create tasks, and manage your board while your coding agent does the work.",
 		assetVideoUrl: "https://github.com/user-attachments/assets/4408930c-33cd-4af9-a343-e82b099eab8c",
@@ -62,7 +62,7 @@ export const TASK_START_ONBOARDING_SLIDES: OnboardingSlide[] = [
 		description:
 			"Create dependency chains of linked tasks that start one another automatically. Agents can auto commit their work as they finish, so you can orchestrate tasks in order and watch the board burn them down automatically.",
 		assetVideoUrl: "https://github.com/user-attachments/assets/9a979242-bd22-4ac1-94c5-3ed5351a99d1",
-		assetAlt: "Linking task cards in Cline Kanban",
+		assetAlt: "Linking task cards in Phuong",
 		assetWidthPx: 1156,
 		assetHeightPx: 720,
 	},
@@ -72,7 +72,7 @@ export const TASK_START_ONBOARDING_SLIDES: OnboardingSlide[] = [
 		description:
 			"Your workflow will feel like writing tickets, reviewing code, and shipping. Watch the agent work next to real-time diffs, then click lines to leave comments like you're reviewing a PR.",
 		assetVideoUrl: "https://github.com/user-attachments/assets/17992035-c1ca-449a-a48b-bb094007f0a1",
-		assetAlt: "Leaving comments on code diffs in Cline Kanban",
+		assetAlt: "Leaving comments on code diffs in Phuong",
 		assetWidthPx: 1616,
 		assetHeightPx: 1080,
 	},
@@ -84,7 +84,7 @@ export const TASK_START_ONBOARDING_SLIDES: OnboardingSlide[] = [
 	},
 ];
 
-const ONBOARDING_AGENT_IDS: readonly RuntimeAgentId[] = ["cline", "claude", "codex", "pi"];
+const ONBOARDING_AGENT_IDS: readonly RuntimeAgentId[] = ["pi", "claude", "codex"];
 const FALLBACK_ONBOARDING_SLIDE: OnboardingSlide = {
 	kind: "agent-selection",
 	title: "",

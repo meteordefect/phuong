@@ -1,18 +1,18 @@
 @import "tailwindcss";
 
 @theme {
-	/* Surface hierarchy */
-	--color-surface-0: #1F2428;
-	--color-surface-1: #24292E;
-	--color-surface-2: #2D3339;
-	--color-surface-3: #353C43;
-	--color-surface-4: #3E464E;
+	/* Surface hierarchy — slightly deeper than upstream Kanban */
+	--color-surface-0: #101418;
+	--color-surface-1: #151a1f;
+	--color-surface-2: #1c2228;
+	--color-surface-3: #252b32;
+	--color-surface-4: #2e353d;
 
 	/* Borders */
-	--color-border: #30363D;
-	--color-border-bright: #444C56;
-	--color-border-focus: #0084FF;
-	--color-divider: #141820;
+	--color-border: #2a3138;
+	--color-border-bright: #3a434c;
+	--color-border-focus: #3B82F6;
+	--color-divider: #0a0d10;
 
 	/* Text */
 	--color-text-primary: #E6EDF3;
@@ -20,8 +20,8 @@
 	--color-text-tertiary: #6E7681;
 
 	/* Accent / brand */
-	--color-accent: #0084FF;
-	--color-accent-hover: #339DFF;
+	--color-accent: #3B82F6;
+	--color-accent-hover: #60A5FA;
 
 	/* Status colors */
 	--color-status-blue: #4C9AFF;

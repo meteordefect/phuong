@@ -140,7 +140,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 				process.env.SHELL = "/definitely-not-a-shell";
 				await withTemporaryEnv({ home: tempHome, pathPrefix: tempBin, replacePath: true }, async () => {
 					const state = await loadRuntimeConfig(tempProject);
-					expect(state.selectedAgentId).toBe("cline");
+					expect(state.selectedAgentId).toBe("pi");
 					expect(existsSync(join(tempHome, ".cline", "kanban", "config.json"))).toBe(false);
 				});
 			} finally {
@@ -225,7 +225,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 
 			await withTemporaryEnv({ home: tempHome, pathPrefix: tempBin }, async () => {
 				const state = await loadRuntimeConfig(tempProject);
-				expect(state.selectedAgentId).toBe("cline");
+				expect(state.selectedAgentId).toBe("pi");
 			});
 		} finally {
 			cleanupBin();
@@ -258,7 +258,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 
 			await withTemporaryEnv({ home: tempHome, pathPrefix: tempBin }, async () => {
 				const state = await loadRuntimeConfig(tempProject);
-				expect(state.selectedAgentId).toBe("cline");
+				expect(state.selectedAgentId).toBe("pi");
 			});
 		} finally {
 			cleanupBin();

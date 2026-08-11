@@ -288,7 +288,7 @@ export function useRuntimeSettingsClineController(
 		if (trimmedProviderId.length === 0) {
 			return {
 				ok: false,
-				message: "Choose a Cline provider before saving.",
+				message: "Choose a provider before saving.",
 			};
 		}
 		const trimmedBaseUrl = toManagedClineOauthProvider(trimmedProviderId)

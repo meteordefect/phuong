@@ -72,7 +72,7 @@ const GIT_PROMPT_VARIANT_OPTIONS: Array<{ value: TaskGitAction; label: string }>
 
 export type RuntimeSettingsSection = "shortcuts";
 
-const SETTINGS_AGENT_ORDER: readonly RuntimeAgentId[] = ["cline", "claude", "codex", "pi"];
+const SETTINGS_AGENT_ORDER: readonly RuntimeAgentId[] = ["pi", "claude", "codex"];
 
 function getShortcutIconOption(icon: string | undefined): RuntimeShortcutIconOption {
 	return getRuntimeShortcutPickerOption(icon);
@@ -545,18 +545,18 @@ export function RuntimeSettingsDialog({
 			setNotificationPermission(nextPermission);
 		}
 		if (selectedAgentId === "cline" && clineSettings.providerId.trim().length === 0) {
-			setSaveError("Choose a Cline provider before saving.");
+			setSaveError("Choose a provider before saving.");
 			return;
 		}
 		if (selectedAgentId === "cline") {
 			const clineProviderSaveResult = await clineSettings.saveProviderSettings();
 			if (!clineProviderSaveResult.ok) {
-				setSaveError(clineProviderSaveResult.message ?? "Could not save Cline provider settings.");
+				setSaveError(clineProviderSaveResult.message ?? "Could not save provider settings.");
 				return;
 			}
 			const clineMcpSaveResult = await clineMcpSettings.saveMcpSettings();
 			if (!clineMcpSaveResult.ok) {
-				setSaveError(clineMcpSaveResult.message ?? "Could not save Cline MCP settings.");
+				setSaveError(clineMcpSaveResult.message ?? "Could not save MCP settings.");
 				return;
 			}
 		}

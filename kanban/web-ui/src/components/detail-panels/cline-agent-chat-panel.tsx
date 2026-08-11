@@ -196,7 +196,7 @@ ref,
 	const panelError = composerError ?? error;
 	const attachmentWarningMessage =
 		draftImages.length > 0 && selectedModel?.supportsVision === false
-			? "The selected Cline model may not accept image input. Choose a vision-capable model to use these images."
+			? "The selected model may not accept image input. Choose a vision-capable model to use these images."
 			: null;
 
 	const isPinnedToBottom = useCallback((container: HTMLDivElement): boolean => {
@@ -262,11 +262,11 @@ ref,
 	const persistClineModelSettings = useCallback(
 		async (overrides?: PersistClineModelSettingsOverrides): Promise<boolean> => {
 			if (!workspaceId) {
-				setComposerError("Select a workspace before choosing a Cline model.");
+				setComposerError("Select a workspace before choosing a model.");
 				return false;
 			}
 			if (clineSettings.providerId.trim().length === 0) {
-				setComposerError("Choose a Cline provider in Settings before selecting a model.");
+				setComposerError("Choose a provider in Settings before selecting a model.");
 				return false;
 			}
 			setComposerError(null);
@@ -280,7 +280,7 @@ ref,
 							: clineSettings.reasoningEffort || null,
 				});
 				if (!result.ok) {
-					setComposerError(result.message ?? "Could not save Cline model settings.");
+					setComposerError(result.message ?? "Could not save model settings.");
 					return false;
 				}
 				onClineSettingsSaved?.();

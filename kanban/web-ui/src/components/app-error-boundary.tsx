@@ -11,7 +11,7 @@ function AppErrorFallback({
 	error: unknown;
 	resetError: () => void;
 }): ReactElement {
-	const message = error instanceof Error ? error.message : "Cline hit an unexpected UI error.";
+	const message = error instanceof Error ? error.message : "Phuong hit an unexpected UI error.";
 
 	return (
 		<div className="min-h-screen bg-surface-0 text-text-primary flex items-center justify-center p-6">
@@ -21,7 +21,7 @@ function AppErrorFallback({
 						<TriangleAlert size={18} />
 					</div>
 					<div>
-						<h1 className="text-lg font-semibold">Cline hit an unexpected UI error.</h1>
+						<h1 className="text-lg font-semibold">Phuong hit an unexpected UI error.</h1>
 						<p className="mt-1 text-sm text-text-secondary">
 							You can try rendering the app again or reload the page.
 						</p>

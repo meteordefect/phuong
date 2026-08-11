@@ -167,7 +167,7 @@ export function ClineSetupSection({
 
 	return (
 		<>
-			{showHeading ? <h6 className="font-semibold text-text-primary mt-4 mb-2">Cline setup</h6> : null}
+			{showHeading ? <h6 className="font-semibold text-text-primary mt-4 mb-2">Provider setup</h6> : null}
 			<div className="mt-2">
 				<p className="text-text-primary font-semibold text-[12px] mt-0 mb-2">API provider</p>
 				<div className="min-w-0 w-1/2 max-w-full">
@@ -202,7 +202,7 @@ export function ClineSetupSection({
 					/>
 				</div>
 				{controller.isLoadingProviderCatalog ? (
-					<p className="text-text-secondary text-[12px] mt-1 mb-0">Fetching Cline providers...</p>
+					<p className="text-text-secondary text-[12px] mt-1 mb-0">Fetching providers...</p>
 				) : null}
 				<div className="grid gap-2 mt-3" style={{ gridTemplateColumns: controller.isOauthProviderSelected ? "1fr" : "1fr 1fr" }}>
 					{controller.isOauthProviderSelected ? null : (
@@ -314,7 +314,7 @@ export function ClineSetupSection({
 					) : null}
 				</div>
 				{controller.isLoadingProviderModels ? (
-					<p className="text-text-secondary text-[12px] mt-1 mb-0">Fetching Cline models...</p>
+					<p className="text-text-secondary text-[12px] mt-1 mb-0">Fetching models...</p>
 				) : null}
 			</div>
 
@@ -333,7 +333,7 @@ export function ClineSetupSection({
 						</Button>
 					</div>
 					<p className="text-text-secondary text-[12px] mt-0 mb-2">
-						Configure Cline MCP servers for tool integrations.
+						Configure MCP servers for tool integrations.
 					</p>
 					{mcpController.mcpSettingsPath ? (
 						<p

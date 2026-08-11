@@ -1017,7 +1017,7 @@ export default function App(): ReactElement {
 				<AlertDialogBody>
 					<AlertDialogDescription asChild>
 						<div className="flex flex-col gap-3">
-							<p>Cline requires git to manage worktrees for tasks. This folder is not a git repository yet.</p>
+							<p>Phuong requires git to manage worktrees for tasks. This folder is not a git repository yet.</p>
 							{pendingGitInitializationPath ? (
 								<p className="font-mono text-xs text-text-secondary break-all">
 									{pendingGitInitializationPath}

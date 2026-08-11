@@ -524,7 +524,7 @@ export function ClineChatComposer({
 							<div
 								className="inline-flex h-7 shrink-0 items-center rounded-md border border-border-bright bg-surface-3 p-0.5"
 								role="tablist"
-								aria-label="Cline mode"
+								aria-label="Agent mode"
 							>
 								<button
 									type="button"

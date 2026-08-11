@@ -68,13 +68,13 @@ export const RUNTIME_AGENT_CATALOG: RuntimeAgentCatalogEntry[] = [
 	},
 ];
 
-// Temporarily keep launch support scoped to the core agent set.
-// Re-enable additional CLIs by uncommenting entries below when ready.
+// Phuong ships with Pi as the primary worker; keep other CLIs available.
+// Native Cline SDK agent stays in the catalog for compatibility but is hidden from launch UI.
 export const RUNTIME_LAUNCH_SUPPORTED_AGENT_IDS: readonly RuntimeAgentId[] = [
-	"cline",
+	"pi",
 	"claude",
 	"codex",
-	"pi",
+	// "cline",
 	// "opencode",
 	// "droid",
 	// "gemini",

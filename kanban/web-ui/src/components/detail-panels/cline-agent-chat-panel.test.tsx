@@ -904,7 +904,7 @@ describe("ClineAgentChatPanel", () => {
 			await Promise.resolve();
 		});
 
-		expect(container.querySelector('[aria-label="Cline mode"]')).toBeNull();
+		expect(container.querySelector('[aria-label="Agent mode"]')).toBeNull();
 
 		const textarea = container.querySelector("textarea");
 		expect(textarea).toBeInstanceOf(HTMLTextAreaElement);
