@@ -113,7 +113,7 @@ describe("useStartupOnboarding", () => {
 		}
 	});
 
-	it("opens startup onboarding on first launch even before any project exists", async () => {
+	it("does not auto-open startup onboarding on first launch", async () => {
 		let latestSnapshot: HookSnapshot | null = null;
 
 		await act(async () => {
@@ -136,7 +136,7 @@ describe("useStartupOnboarding", () => {
 		}
 
 		const snapshot = latestSnapshot as HookSnapshot;
-		expect(snapshot.isStartupOnboardingDialogOpen).toBe(true);
+		expect(snapshot.isStartupOnboardingDialogOpen).toBe(false);
 	});
 
 	it("saves the selected agent without requiring a project", async () => {
@@ -194,7 +194,7 @@ describe("useStartupOnboarding", () => {
 		expect(snapshot.isStartupOnboardingDialogOpen).toBe(false);
 	});
 
-	it("reopens after a project is added when setup is still incomplete", async () => {
+	it("does not reopen after a project is added when setup is still incomplete", async () => {
 		window.localStorage.setItem(LocalStorageKey.OnboardingDialogShown, "true");
 		let latestSnapshot: HookSnapshot | null = null;
 
@@ -218,7 +218,7 @@ describe("useStartupOnboarding", () => {
 		}
 
 		const snapshot = latestSnapshot as HookSnapshot;
-		expect(snapshot.isStartupOnboardingDialogOpen).toBe(true);
+		expect(snapshot.isStartupOnboardingDialogOpen).toBe(false);
 	});
 
 	it("can be manually opened from debug tools even when normal criteria would keep it closed", async () => {

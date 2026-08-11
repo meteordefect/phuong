@@ -11,19 +11,12 @@ export function isSelectedAgentAuthenticated(
 	return isClineProviderAuthenticated(clineProviderSettings);
 }
 
-export function shouldShowStartupOnboardingDialog(input: {
+export function shouldShowStartupOnboardingDialog(_input: {
 	hasShownOnboardingDialog: boolean;
 	isTaskAgentReady: boolean | null | undefined;
 	isSelectedAgentAuthenticated: boolean;
 }): boolean {
-	if (!input.hasShownOnboardingDialog) {
-		return true;
-	}
-	if (input.isTaskAgentReady === null || input.isTaskAgentReady === undefined) {
-		return false;
-	}
-	if (!input.isSelectedAgentAuthenticated) {
-		return true;
-	}
-	return input.isTaskAgentReady === false;
+	// Phuong skips the upstream Cline Kanban "Get started" carousel.
+	// Debug tools can still force-open the dialog via handleOpenStartupOnboardingDialog.
+	return false;
 }

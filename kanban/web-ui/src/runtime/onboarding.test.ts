@@ -40,37 +40,14 @@ describe("runtime onboarding helpers", () => {
 		).toBe(true);
 	});
 
-	it("shows startup onboarding at least once for configured users", () => {
+	it("never auto-opens the Cline Kanban startup onboarding dialog", () => {
 		expect(
 			shouldShowStartupOnboardingDialog({
 				hasShownOnboardingDialog: false,
-				isTaskAgentReady: true,
-				isSelectedAgentAuthenticated: true,
-			}),
-		).toBe(true);
-	});
-
-	it("does not reopen when onboarding was already shown and readiness is still unknown", () => {
-		expect(
-			shouldShowStartupOnboardingDialog({
-				hasShownOnboardingDialog: true,
-				isTaskAgentReady: null,
-				isSelectedAgentAuthenticated: true,
-			}),
-		).toBe(false);
-	});
-
-	it("shows startup onboarding when selected agent is not authenticated", () => {
-		expect(
-			shouldShowStartupOnboardingDialog({
-				hasShownOnboardingDialog: true,
-				isTaskAgentReady: true,
+				isTaskAgentReady: false,
 				isSelectedAgentAuthenticated: false,
 			}),
-		).toBe(true);
-	});
-
-	it("does not show startup onboarding once shown and setup is ready", () => {
+		).toBe(false);
 		expect(
 			shouldShowStartupOnboardingDialog({
 				hasShownOnboardingDialog: true,
