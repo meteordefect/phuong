@@ -11,7 +11,7 @@
 	/* Borders */
 	--color-border: #2a3138;
 	--color-border-bright: #3a434c;
-	--color-border-focus: #3B82F6;
+	--color-border-focus: #FF6B35;
 	--color-divider: #0a0d10;
 
 	/* Text */
@@ -19,9 +19,9 @@
 	--color-text-secondary: #8B949E;
 	--color-text-tertiary: #6E7681;
 
-	/* Accent / brand */
-	--color-accent: #3B82F6;
-	--color-accent-hover: #60A5FA;
+	/* Accent / brand — cool orange */
+	--color-accent: #FF6B35;
+	--color-accent-hover: #FF8555;
 
 	/* Status colors */
 	--color-status-blue: #4C9AFF;
