@@ -1,0 +1,20 @@
+[Unit]
+Description=Hermes Agent Gateway (Phuong front-end)
+After=network.target kanban.service
+Wants=kanban.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory={{ hermes_home }}
+Environment=HOME=/root
+Environment=HERMES_HOME={{ hermes_home }}
+EnvironmentFile=-{{ hermes_home }}/.env
+ExecStart={{ hermes_bin }} gateway run
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

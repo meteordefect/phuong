@@ -102,3 +102,7 @@ If the box is already provisioned (e.g. netcup Debian):
 5. From `deploy/`: `./deploy.sh kanban`
 
 Current netcup target (Aug 2026): `159.195.213.113` / `v2202608386140495566.powersrv.de`.
+
+## Hermes front-end (repeatable)
+
+`./deploy.sh kanban` also installs Hermes when `ZAI_API_KEY` (or another LLM key) is set in `deploy/.env`. See `docs/HERMES-FRONT-END.md`.

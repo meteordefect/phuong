@@ -57,6 +57,7 @@ DEFAULT_MODEL=...   # Phuong's own model
 |----------|---------|
 | `docs/PHUONG-CONDUIT.md` | Product model: conduit + optional dashboard |
 | `docs/DEPLOY-HETZNER.md` | New Hetzner VPS deploy (reuse keys) |
+| `docs/HERMES-FRONT-END.md` | Hermes talk layer + `phuong-ctl` bridge |
 | `docs/BUILD-RUNSHEET.md` | Build phases |
 | `docs/PHUONG-ORCHESTRATE-ADOPTION-PLAN.md` | Orchestration protocol |
 | `docs/KANBAN-FULL-BUILD-PLAN.md` | Full architectural plan |

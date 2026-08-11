@@ -1,0 +1,156 @@
+---
+- name: Deploy Hermes as Phuong front-end
+  hosts: control_plane
+  become: yes
+
+  vars:
+    hermes_home: /root/.hermes
+    hermes_install_dir: /usr/local/lib/hermes-agent
+    hermes_bin: /usr/local/bin/hermes
+    kanban_cli: /opt/kanban/kanban/dist/cli.js
+    kanban_port: 3484
+    repos_dir: /opt/repos
+    phuong_ctl_path: /usr/local/bin/phuong-ctl
+    hermes_provider: "{{ lookup('env', 'HERMES_PROVIDER') | default('zai', true) }}"
+    hermes_model: "{{ lookup('env', 'HERMES_MODEL') | default('glm-5.1', true) }}"
+    zai_api_key: "{{ lookup('env', 'ZAI_API_KEY') | default('', true) }}"
+    kimi_api_key: "{{ lookup('env', 'KIMI_API_KEY') | default('', true) }}"
+    anthropic_api_key: "{{ lookup('env', 'ANTHROPIC_API_KEY') | default('', true) }}"
+    telegram_bot_token: "{{ lookup('env', 'TELEGRAM_BOT_TOKEN') | default('', true) }}"
+    telegram_allowed_users: "{{ lookup('env', 'TELEGRAM_ALLOWED_USERS') | default('', true) }}"
+    enable_hermes_gateway: "{{ (telegram_bot_token | length > 0) | bool }}"
+
+  tasks:
+    - name: Require an LLM key for Hermes
+      assert:
+        that:
+          - (zai_api_key | length > 0) or (kimi_api_key | length > 0) or (anthropic_api_key | length > 0)
+        fail_msg: >-
+          Set ZAI_API_KEY (preferred for GLM), KIMI_API_KEY, or ANTHROPIC_API_KEY in deploy/.env
+          before deploying Hermes.
+
+    - name: Ensure repos directory exists
+      file:
+        path: "{{ repos_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Check if Hermes binary exists
+      stat:
+        path: "{{ hermes_bin }}"
+      register: hermes_bin_stat
+
+    - name: Install Hermes (non-interactive)
+      shell: |
+        curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- \
+          --skip-setup \
+          --non-interactive \
+          --skip-browser \
+          --hermes-home "{{ hermes_home }}"
+      args:
+        executable: /bin/bash
+      when: not hermes_bin_stat.stat.exists
+      register: hermes_install
+
+    - name: Refresh Hermes when already installed
+      shell: |
+        if command -v hermes >/dev/null 2>&1; then
+          hermes update || true
+        fi
+      args:
+        executable: /bin/bash
+      when: hermes_bin_stat.stat.exists
+      changed_when: false
+
+    - name: Ensure Hermes home directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ hermes_home }}"
+        - "{{ hermes_home }}/skills"
+        - "{{ hermes_home }}/skills/phuong"
+
+    - name: Write Hermes config.yaml
+      template:
+        src: ../templates/hermes-config.yaml.j2
+        dest: "{{ hermes_home }}/config.yaml"
+        mode: "0644"
+
+    - name: Write Hermes .env (secrets)
+      template:
+        src: ../templates/hermes-env.j2
+        dest: "{{ hermes_home }}/.env"
+        mode: "0600"
+
+    - name: Write Hermes SOUL.md
+      copy:
+        src: "{{ playbook_dir }}/../../hermes/SOUL.md"
+        dest: "{{ hermes_home }}/SOUL.md"
+        mode: "0644"
+
+    - name: Install Phuong skill for Hermes
+      copy:
+        src: "{{ playbook_dir }}/../../hermes/skills/phuong/"
+        dest: "{{ hermes_home }}/skills/phuong/"
+        mode: "0644"
+
+    - name: Install phuong-ctl CLI
+      copy:
+        src: "{{ playbook_dir }}/../../hermes/bin/phuong-ctl"
+        dest: "{{ phuong_ctl_path }}"
+        mode: "0755"
+
+    - name: Symlink kanban CLI onto PATH
+      file:
+        src: "{{ kanban_cli }}"
+        dest: /usr/local/bin/kanban
+        state: link
+        force: yes
+
+    - name: Install Hermes gateway systemd unit
+      template:
+        src: ../templates/hermes.service.j2
+        dest: /etc/systemd/system/hermes.service
+        mode: "0644"
+      notify: Reload systemd for Hermes
+
+    - name: Enable and start Hermes gateway when Telegram is configured
+      systemd:
+        name: hermes
+        state: started
+        enabled: yes
+        daemon_reload: yes
+      when: enable_hermes_gateway | bool
+
+    - name: Leave Hermes gateway stopped when no Telegram token
+      systemd:
+        name: hermes
+        state: stopped
+        enabled: no
+        daemon_reload: yes
+      when: not (enable_hermes_gateway | bool)
+
+    - name: Smoke-check phuong-ctl health
+      shell: "{{ phuong_ctl_path }} health"
+      register: phuong_ctl_health
+      changed_when: false
+      failed_when: phuong_ctl_health.rc != 0
+
+    - name: Smoke-check Hermes binary
+      shell: "{{ hermes_bin }} --version || {{ hermes_bin }} version || command -v hermes"
+      register: hermes_version
+      changed_when: false
+
+    - name: Summary
+      debug:
+        msg: >-
+          Hermes ready (provider={{ hermes_provider }}, model={{ hermes_model }}).
+          phuong-ctl={{ phuong_ctl_health.stdout }}.
+          gateway={{ 'enabled (telegram)' if (enable_hermes_gateway | bool) else 'installed but stopped (set TELEGRAM_BOT_TOKEN to enable)' }}.
+
+  handlers:
+    - name: Reload systemd for Hermes
+      systemd:
+        daemon_reload: yes

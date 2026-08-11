@@ -1,0 +1,10 @@
+# Managed by Phuong Ansible (deploy/hermes). Safe to re-apply on each deploy.
+model:
+  default: "{{ hermes_model }}"
+  provider: "{{ hermes_provider }}"
+
+terminal:
+  backend: local
+
+memory:
+  enabled: true

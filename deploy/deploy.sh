@@ -208,6 +208,31 @@ cmd_nginx() {
     log_success "Nginx updated"
 }
 
+cmd_hermes() {
+    if [ -f ../.env ]; then
+        export $(grep -v '^#' ../.env | grep -v '^$' | xargs)
+    fi
+    if [ -f .env ]; then
+        export $(grep -v '^#' .env | grep -v '^$' | xargs)
+    fi
+
+    if [ -z "$ZAI_API_KEY" ] && [ -z "$KIMI_API_KEY" ] && [ -z "$ANTHROPIC_API_KEY" ]; then
+        log_error "Hermes needs ZAI_API_KEY (preferred), KIMI_API_KEY, or ANTHROPIC_API_KEY in deploy/.env"
+        exit 1
+    fi
+
+    if [ ! -f ansible/inventory.ini ]; then
+        log_error "Ansible inventory not found at ansible/inventory.ini"
+        exit 1
+    fi
+
+    log_info "Deploying Hermes front-end (Phuong bridge)..."
+    cd ansible
+    ansible-playbook playbooks/hermes-deploy.yml
+    cd ..
+    log_success "Hermes deployed. CLI: ssh + hermes / phuong-ctl. Gateway starts when TELEGRAM_BOT_TOKEN is set."
+}
+
 cmd_kanban() {
     if [ -f ../.env ]; then
         export $(grep -v '^#' ../.env | grep -v '^$' | xargs)
@@ -234,6 +259,13 @@ cmd_kanban() {
         log_success "Kanban deployed! Open https://$DOMAIN"
     else
         log_success "Kanban deployed! Access via SSH tunnel or direct IP."
+    fi
+
+    # Repeatable: when LLM keys are present, also wire Hermes → Phuong.
+    if [ -n "$ZAI_API_KEY" ] || [ -n "$KIMI_API_KEY" ] || [ -n "$ANTHROPIC_API_KEY" ]; then
+        cmd_hermes
+    else
+        log_warn "Skipping Hermes deploy (no ZAI_API_KEY / KIMI_API_KEY / ANTHROPIC_API_KEY)."
     fi
 }
 
@@ -555,10 +587,11 @@ ${BLUE}Usage:${NC}
   ./deploy.sh [command]
 
 ${BLUE}Kanban Fork (v5 — primary):${NC}
-  kanban            Deploy Kanban fork to VPS (build + systemd + nginx + TLS)
+  kanban            Deploy Kanban + Hermes (when LLM keys present in deploy/.env)
   kanban-logs       View Kanban runtime logs (journalctl)
   kanban-restart    Restart Kanban service on VPS
   kanban-status     Check Kanban service status
+  hermes            Deploy/refresh Hermes front-end + phuong-ctl bridge only
 
 ${BLUE}Legacy Setup Commands:${NC}
   init              Fresh VPS → fully running control plane + agent bridge
@@ -668,6 +701,7 @@ case "${1:-help}" in
     kanban-logs)                 cmd_kanban_logs ;;
     kanban-restart)              cmd_kanban_restart ;;
     kanban-status)               cmd_kanban_status ;;
+    hermes)                      cmd_hermes ;;
     init)                        cmd_init ;;
     full)                        cmd_full ;;
     terraform-init)              cmd_terraform_init ;;

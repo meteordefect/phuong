@@ -1,0 +1,21 @@
+# Managed by Phuong Ansible — secrets from deploy/.env (never commit).
+# Hermes z.ai provider expects GLM_API_KEY (mapped from ZAI_API_KEY).
+{% if zai_api_key | length > 0 %}
+GLM_API_KEY={{ zai_api_key }}
+{% endif %}
+{% if kimi_api_key | length > 0 %}
+KIMI_API_KEY={{ kimi_api_key }}
+{% endif %}
+{% if anthropic_api_key | length > 0 %}
+ANTHROPIC_API_KEY={{ anthropic_api_key }}
+{% endif %}
+{% if telegram_bot_token | length > 0 %}
+TELEGRAM_BOT_TOKEN={{ telegram_bot_token }}
+{% endif %}
+{% if telegram_allowed_users | length > 0 %}
+TELEGRAM_ALLOWED_USERS={{ telegram_allowed_users }}
+{% endif %}
+
+PHUONG_URL=http://127.0.0.1:{{ kanban_port }}
+PHUONG_REPOS_DIR={{ repos_dir }}
+KANBAN_CLI={{ kanban_cli }}

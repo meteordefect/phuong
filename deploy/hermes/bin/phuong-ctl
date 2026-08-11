@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+# Phuong control CLI for Hermes (and humans).
+# Talks to the local Kanban/Phuong runtime on 127.0.0.1:3484.
+set -euo pipefail
+
+PHUONG_URL="${PHUONG_URL:-http://127.0.0.1:3484}"
+KANBAN_CLI="${KANBAN_CLI:-/opt/kanban/kanban/dist/cli.js}"
+REPOS_DIR="${PHUONG_REPOS_DIR:-/opt/repos}"
+
+usage() {
+	cat <<'EOF'
+phuong-ctl — control Phuong project chats from the shell
+
+Usage:
+  phuong-ctl projects
+  phuong-ctl chats [--project-path PATH] [--column backlog|in_progress|review|trash]
+  phuong-ctl create --project NAME|PATH --prompt "..." [--tier T0|T1|T2|T3] [--start]
+  phuong-ctl start --project NAME|PATH --task-id ID
+  phuong-ctl health
+
+Notes:
+  - Project can be a registered name (e.g. decipher) or an absolute path.
+  - create without --start only opens a backlog card; pass --start to launch Pi.
+EOF
+}
+
+require_kanban() {
+	if [[ ! -f "$KANBAN_CLI" ]]; then
+		echo "error: kanban CLI not found at $KANBAN_CLI" >&2
+		exit 1
+	fi
+}
+
+json_get() {
+	# Usage: json_get <python-expr-using-data>
+	python3 -c "
+import json,sys
+data=json.load(sys.stdin)
+$1
+"
+}
+
+resolve_project_path() {
+	local input="$1"
+	if [[ -z "$input" ]]; then
+		echo "error: project required" >&2
+		exit 1
+	fi
+	if [[ -d "$input" ]]; then
+		realpath "$input"
+		return
+	fi
+	if [[ -d "$REPOS_DIR/$input" ]]; then
+		realpath "$REPOS_DIR/$input"
+		return
+	fi
+	# Look up registered projects by name/id
+	local found
+	found="$(curl -fsS "$PHUONG_URL/api/trpc/projects.list" | python3 -c "
+import json,sys
+payload=json.load(sys.stdin)
+projects=payload.get('result',{}).get('data',{}).get('projects',[])
+needle=sys.argv[1].lower()
+for p in projects:
+    if p.get('id','').lower()==needle or p.get('name','').lower()==needle:
+        print(p.get('path','')); sys.exit(0)
+sys.exit(1)
+" "$input" 2>/dev/null || true)"
+	if [[ -n "${found:-}" && -d "$found" ]]; then
+		realpath "$found"
+		return
+	fi
+	echo "error: unknown project '$input' (tried path and registered projects)" >&2
+	exit 1
+}
+
+cmd_health() {
+	if curl -fsS "$PHUONG_URL/api/trpc/projects.list" >/dev/null; then
+		echo "ok phuong=$PHUONG_URL"
+	else
+		echo "error: Phuong runtime not reachable at $PHUONG_URL" >&2
+		exit 1
+	fi
+}
+
+cmd_projects() {
+	curl -fsS "$PHUONG_URL/api/trpc/projects.list" | python3 -c '
+import json,sys
+payload=json.load(sys.stdin)
+data=payload.get("result",{}).get("data",{})
+print("current=" + str(data.get("currentProjectId")))
+for p in data.get("projects",[]):
+    counts=p.get("taskCounts") or {}
+    print("%s\t%s\tbacklog=%s in_progress=%s review=%s" % (
+        p.get("id"),
+        p.get("path"),
+        counts.get("backlog", 0),
+        counts.get("in_progress", 0),
+        counts.get("review", 0),
+    ))
+'
+}
+
+cmd_chats() {
+	require_kanban
+	local project_path="" column=""
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--project-path|--project) project_path="$(resolve_project_path "$2")"; shift 2 ;;
+			--column) column="$2"; shift 2 ;;
+			*) echo "error: unknown arg $1" >&2; exit 1 ;;
+		esac
+	done
+	if [[ -z "$project_path" ]]; then
+		echo "error: --project required" >&2
+		exit 1
+	fi
+	local args=(task list --project-path "$project_path")
+	if [[ -n "$column" ]]; then
+		args+=(--column "$column")
+	fi
+	node "$KANBAN_CLI" "${args[@]}"
+}
+
+cmd_create() {
+	require_kanban
+	local project="" prompt="" tier="" start=false
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--project|--project-path) project="$2"; shift 2 ;;
+			--prompt) prompt="$2"; shift 2 ;;
+			--tier) tier="$2"; shift 2 ;;
+			--start) start=true; shift ;;
+			*) echo "error: unknown arg $1" >&2; exit 1 ;;
+		esac
+	done
+	if [[ -z "$project" || -z "$prompt" ]]; then
+		echo "error: --project and --prompt are required" >&2
+		exit 1
+	fi
+	local project_path
+	project_path="$(resolve_project_path "$project")"
+
+	# Optional tier hint is prefixed into the prompt so Pi/Phuong routing can see it.
+	local full_prompt="$prompt"
+	if [[ -n "$tier" ]]; then
+		full_prompt="[tier=$tier] $prompt"
+	fi
+
+	local created
+	created="$(node "$KANBAN_CLI" task create --project-path "$project_path" --prompt "$full_prompt")"
+	echo "$created"
+
+	if [[ "$start" == true ]]; then
+		local task_id
+		task_id="$(printf '%s' "$created" | python3 -c '
+import json,sys,re
+raw=sys.stdin.read()
+try:
+    data=json.loads(raw)
+    print(data.get("taskId") or data.get("id") or (data.get("task") or {}).get("id") or "")
+except Exception:
+    m=re.search(r"\"id\"\s*:\s*\"([^\"]+)\"", raw)
+    print(m.group(1) if m else "")
+')"
+		if [[ -z "$task_id" ]]; then
+			echo "error: could not parse task id from create output" >&2
+			exit 1
+		fi
+		node "$KANBAN_CLI" task start --project-path "$project_path" --task-id "$task_id"
+	fi
+}
+
+cmd_start() {
+	require_kanban
+	local project="" task_id=""
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--project|--project-path) project="$2"; shift 2 ;;
+			--task-id) task_id="$2"; shift 2 ;;
+			*) echo "error: unknown arg $1" >&2; exit 1 ;;
+		esac
+	done
+	if [[ -z "$project" || -z "$task_id" ]]; then
+		echo "error: --project and --task-id are required" >&2
+		exit 1
+	fi
+	local project_path
+	project_path="$(resolve_project_path "$project")"
+	node "$KANBAN_CLI" task start --project-path "$project_path" --task-id "$task_id"
+}
+
+main() {
+	local cmd="${1:-}"
+	shift || true
+	case "$cmd" in
+		projects) cmd_projects "$@" ;;
+		chats|list) cmd_chats "$@" ;;
+		create) cmd_create "$@" ;;
+		start) cmd_start "$@" ;;
+		health) cmd_health "$@" ;;
+		-h|--help|help|"") usage ;;
+		*) echo "error: unknown command '$cmd'" >&2; usage; exit 1 ;;
+	esac
+}
+
+main "$@"
