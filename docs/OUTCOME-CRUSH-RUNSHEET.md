@@ -45,10 +45,12 @@ File: `kanban/AGENTS.md` (design tokens section)
 
 ### 1.4 Verify
 
-- App boots, no visual regressions that hide text (contrast on tabs, buttons, Phuong panel).
-- Existing sidebar/PTY still work; they just sit on warmer surfaces.
+- [x] App boots, no visual regressions that hide text (contrast on tabs, buttons, Phuong panel).
+- [x] Existing sidebar/PTY still work; they just sit on warmer surfaces.
 
 **Checkpoint:** Token PR. No new components.
+
+> **Done** — `9341527`. Warm Pepper/BBQ/Char-inspired surfaces, parchment text, Phuong orange accent kept. Vite + runtime boot; sidebar, Phuong panel, and bottom PTY readable. No new components. Hex in `globals.css` / `theme-colors.ts` / `AGENTS.md` match.
 
 ---
 
