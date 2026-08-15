@@ -62,6 +62,9 @@ Phuong can `attach_artifact` paths under a chat worktree (e.g. `.phuong/artifact
 
 ## Related plans
 
+- `docs/OUTCOME-HIERARCHY-PLAN.md` — next Dashboard shape: project tabs → outcomes → nested pi runs → DB trail
+- `docs/CRUSH-VISUAL-STEAL-PLAN.md` — Crush look in React (Crush is not a runtime)
+- `docs/OUTCOME-CRUSH-RUNSHEET.md` — execution order for those two plans
 - `docs/PHUONG-ORCHESTRATE-ADOPTION-PLAN.md` — orchestration protocol
-- `docs/BUILD-RUNSHEET.md` — build phases
+- `docs/BUILD-RUNSHEET.md` — historical build phases
 - `docs/DEPLOY-HETZNER.md` — new VPS deploy

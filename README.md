@@ -21,7 +21,7 @@ Deployed on netcup VPS `159.195.213.113` (HTTP). See `docs/DEPLOY-HETZNER.md` (s
 | **Phuong** (default home) | Talk only here. She creates project chats, picks models by tier (cheap vs strong), runs gates, attaches screenshots, reports back. |
 | **Dashboard** | Browse projects → chats, watch Pi sessions read-only, view artifacts. Interject only if you unlock it. |
 
-There is no kanban board UI. Board columns still back chat sessions internally.
+There is no kanban board UI. Board columns still back chat sessions internally. Next product shape (project tabs → outcomes → nested pi runs → DB trail) is in `docs/OUTCOME-HIERARCHY-PLAN.md`.
 
 ## Architecture
 
@@ -56,11 +56,14 @@ DEFAULT_MODEL=...   # Phuong's own model
 | Document | Purpose |
 |----------|---------|
 | `docs/PHUONG-CONDUIT.md` | Product model: conduit + optional dashboard |
+| `docs/OUTCOME-HIERARCHY-PLAN.md` | Next design: tabs, outcomes, nested pi runs, DB trail |
+| `docs/CRUSH-VISUAL-STEAL-PLAN.md` | Crush look in React (no Crush runtime) |
+| `docs/OUTCOME-CRUSH-RUNSHEET.md` | Execution order for the two plans above |
 | `docs/DEPLOY-HETZNER.md` | New Hetzner VPS deploy (reuse keys) |
 | `docs/HERMES-FRONT-END.md` | Hermes talk layer + `phuong-ctl` bridge |
-| `docs/BUILD-RUNSHEET.md` | Build phases |
+| `docs/BUILD-RUNSHEET.md` | Historical build phases (1–7) |
 | `docs/PHUONG-ORCHESTRATE-ADOPTION-PLAN.md` | Orchestration protocol |
-| `docs/KANBAN-FULL-BUILD-PLAN.md` | Full architectural plan |
+| `docs/KANBAN-FULL-BUILD-PLAN.md` | Full architectural plan (superseded product shape) |
 | `docs/MEMORY-SEPARATION.md` | External memory repo |
 | `docs/ARCHITECTURE.md` | v1 (historical) |
 | `kanban/docs/architecture.md` | Kanban runtime architecture |
