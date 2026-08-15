@@ -1,39 +1,40 @@
 @import "tailwindcss";
 
 @theme {
-	/* Surface hierarchy — slightly deeper than upstream Kanban */
-	--color-surface-0: #101418;
-	--color-surface-1: #151a1f;
-	--color-surface-2: #1c2228;
-	--color-surface-3: #252b32;
-	--color-surface-4: #2e353d;
+	/* Surface hierarchy — Charmtone-inspired warm dark (Pepper / BBQ / Char / Iron).
+	   Token names stay ours. Hex is tuned by eye, not copied from Crush. */
+	--color-surface-0: #14110F;
+	--color-surface-1: #1C1815;
+	--color-surface-2: #26211C;
+	--color-surface-3: #322C26;
+	--color-surface-4: #3E372F;
 
-	/* Borders */
-	--color-border: #2a3138;
-	--color-border-bright: #3a434c;
+	/* Borders — Char / Iron hairline, not GitHub gray */
+	--color-border: #3A332C;
+	--color-border-bright: #4F463E;
 	--color-border-focus: #FF6B35;
-	--color-divider: #0a0d10;
+	--color-divider: #0C0A09;
 
-	/* Text */
-	--color-text-primary: #E6EDF3;
-	--color-text-secondary: #8B949E;
-	--color-text-tertiary: #6E7681;
+	/* Text — Sash / Smoke / Oyster warmth */
+	--color-text-primary: #EDE6DF;
+	--color-text-secondary: #A89F94;
+	--color-text-tertiary: #8A8178;
 
-	/* Accent / brand — cool orange */
+	/* Accent / brand — Phuong orange (kept; contrast holds on warm surfaces) */
 	--color-accent: #FF6B35;
 	--color-accent-hover: #FF8555;
 
-	/* Status colors */
-	--color-status-blue: #4C9AFF;
-	--color-status-green: #3FB950;
-	--color-status-orange: #D29922;
-	--color-status-red: #F85149;
-	--color-status-purple: #A371F7;
-	--color-status-gold: #D4A72C;
-	--color-status-violet: #8B5CF6;
-	--color-status-rose: #F43F5E;
-	--color-status-cyan: #06B6D4;
-	--color-status-lime: #84CC16;
+	/* Status — Julep / Coral / Mustard / Malibu / Dolly-adjacent, still readable */
+	--color-status-blue: #5BA3D9;
+	--color-status-green: #3ECF8E;
+	--color-status-orange: #E0A54A;
+	--color-status-red: #E85A6A;
+	--color-status-purple: #C48BEC;
+	--color-status-gold: #D4A84A;
+	--color-status-violet: #9B7CF0;
+	--color-status-rose: #E85A7A;
+	--color-status-cyan: #3DB8D4;
+	--color-status-lime: #8FCF4A;
 
 	/* Typography */
 	--font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;

@@ -29,19 +29,19 @@ Safe to do before the ledger. Do not build trail cards yet.
 
 File: `kanban/web-ui/src/styles/globals.css`
 
-Shift surfaces toward warm dark (Pepper/BBQ/Char/Iron vibe). Keep token names (`surface-0`, `accent`, …). Tune accent so it still reads as Phuong (current orange is allowed if contrast holds).
+- [x] Shift surfaces toward warm dark (Pepper/BBQ/Char/Iron vibe). Keep token names (`surface-0`, `accent`, …). Tune accent so it still reads as Phuong (current orange is allowed if contrast holds).
 
 ### 1.2 Match terminal selection
 
 File: `kanban/web-ui/src/terminal/theme-colors.ts`
 
-Same background / selection as the new surfaces.
+- [x] Same background / selection as the new surfaces.
 
 ### 1.3 Update token docs
 
 File: `kanban/AGENTS.md` (design tokens section)
 
-Replace GitHub-blue examples if they still appear. New hex values must match `globals.css`.
+- [x] Replace GitHub-blue examples if they still appear. New hex values must match `globals.css`.
 
 ### 1.4 Verify
 
