@@ -2,6 +2,8 @@
 
 Step-by-step execution plan for the Phuong/Kanban rebuild. Each phase produces a working checkpoint. Do not skip phases — each depends on the previous.
 
+**Current execution track:** outcome hierarchy + Crush-inspired visuals is `docs/OUTCOME-CRUSH-RUNSHEET.md` (plans: `docs/OUTCOME-HIERARCHY-PLAN.md`, `docs/CRUSH-VISUAL-STEAL-PLAN.md`). This file remains the historical Phases 1–7 record.
+
 ## Phase 1: Import Kanban and boot locally ✅
 
 ### 1.1 Clone upstream Kanban

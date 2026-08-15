@@ -1,27 +1,39 @@
 # Phuong
 
 <p align="center">
-  <img src="./phuong.png" alt="Phuong dashboard running agent chats" width="100%" />
+  <img src="./phuong-conduit.webp" alt="Phuong conduit — talk here, she routes Pi chats" width="100%" />
 </p>
 
 Always-on AI project manager on your VPS, built on a [Kanban](https://github.com/cline/kanban) fork.
 
-**Phuong** is the conduit: you talk to her from phone or desktop and she plans, routes Pi worker chats, verifies, and reports. **Dashboard** is optional — project/chat ledger for watching work and E2E artifacts without interjecting. Either entry is enough.
+**Phuong** is the conduit: you talk to her from phone or desktop and she plans, routes Pi worker chats, verifies, and reports. **Dashboard** is optional — watch projects and chats without interjecting. Either entry is enough.
 
-This stack is its own product/deploy — keep it isolated from any other agent systems.
+Workers stay **pi**. Crush is a mood board only (warm dark tokens in the React UI). This stack is its own product/deploy — keep it isolated from any other agent systems.
+
+## Look
+
+Warm dark surfaces (Phase 1). Same chrome for talk and watch. Live PTY is still there; it is not the long-term record.
+
+<p align="center">
+  <img src="./phuong-dashboard.webp" alt="Dashboard — watch-only, no chat selected" width="100%" />
+</p>
+
+<p align="center">
+  <img src="./phuong-pty.webp" alt="Phuong conduit with matching bottom PTY" width="100%" />
+</p>
 
 ## Status
 
-Deployed on netcup VPS `159.195.213.113` (HTTP). See `docs/DEPLOY-HETZNER.md` (same Ansible flow; Terraform/Hetzner optional) and `docs/PHUONG-CONDUIT.md`.
+Deployed on netcup VPS `159.195.213.113` (HTTP). See `docs/DEPLOY-HETZNER.md` and `docs/PHUONG-CONDUIT.md`.
+
+There is no kanban board UI. Board columns still back chat sessions internally. Next: project tabs → outcomes → nested pi runs → SQLite trail (`docs/OUTCOME-HIERARCHY-PLAN.md`, `docs/OUTCOME-CRUSH-RUNSHEET.md`). Phase 1 tokens are in; ledger is Phase 2.
 
 ## Dual entry
 
 | Mode | Purpose |
 |------|---------|
-| **Phuong** (default home) | Talk only here. She creates project chats, picks models by tier (cheap vs strong), runs gates, attaches screenshots, reports back. |
+| **Phuong** (default home) | Talk only here. She creates project chats, picks models by tier, runs gates, attaches screenshots, reports back. |
 | **Dashboard** | Browse projects → chats, watch Pi sessions read-only, view artifacts. Interject only if you unlock it. |
-
-There is no kanban board UI. Board columns still back chat sessions internally.
 
 ## Architecture
 
@@ -56,11 +68,14 @@ DEFAULT_MODEL=...   # Phuong's own model
 | Document | Purpose |
 |----------|---------|
 | `docs/PHUONG-CONDUIT.md` | Product model: conduit + optional dashboard |
+| `docs/OUTCOME-HIERARCHY-PLAN.md` | Next design: tabs, outcomes, nested pi runs, DB trail |
+| `docs/CRUSH-VISUAL-STEAL-PLAN.md` | Crush look in React (no Crush runtime) |
+| `docs/OUTCOME-CRUSH-RUNSHEET.md` | Execution order for the two plans above |
 | `docs/DEPLOY-HETZNER.md` | New Hetzner VPS deploy (reuse keys) |
 | `docs/HERMES-FRONT-END.md` | Hermes talk layer + `phuong-ctl` bridge |
-| `docs/BUILD-RUNSHEET.md` | Build phases |
+| `docs/BUILD-RUNSHEET.md` | Historical build phases (1–7) |
 | `docs/PHUONG-ORCHESTRATE-ADOPTION-PLAN.md` | Orchestration protocol |
-| `docs/KANBAN-FULL-BUILD-PLAN.md` | Full architectural plan |
+| `docs/KANBAN-FULL-BUILD-PLAN.md` | Full architectural plan (superseded product shape) |
 | `docs/MEMORY-SEPARATION.md` | External memory repo |
 | `docs/ARCHITECTURE.md` | v1 (historical) |
 | `kanban/docs/architecture.md` | Kanban runtime architecture |

@@ -1,0 +1,279 @@
+# Outcome + Crush Visual Runsheet
+
+Execute `docs/OUTCOME-HIERARCHY-PLAN.md` and `docs/CRUSH-VISUAL-STEAL-PLAN.md` in this order. Do not skip phases. Each phase is a working checkpoint.
+
+Crush is never installed as a dependency of this work.
+
+Related historical runsheet: `docs/BUILD-RUNSHEET.md` (Phases 1–7). This document is the next execution track.
+
+---
+
+## Phase 0: Plans locked
+
+This phase is the docs only.
+
+- [x] `docs/OUTCOME-HIERARCHY-PLAN.md`
+- [x] `docs/CRUSH-VISUAL-STEAL-PLAN.md`
+- [x] `docs/OUTCOME-CRUSH-RUNSHEET.md`
+- [x] Index in root `README.md`
+
+**Checkpoint:** Plans are in git. No product behavior change.
+
+---
+
+## Phase 1: Charmtone-inspired tokens (visual only)
+
+Safe to do before the ledger. Do not build trail cards yet.
+
+### 1.1 Remap CSS tokens
+
+File: `kanban/web-ui/src/styles/globals.css`
+
+- [x] Shift surfaces toward warm dark (Pepper/BBQ/Char/Iron vibe). Keep token names (`surface-0`, `accent`, …). Tune accent so it still reads as Phuong (current orange is allowed if contrast holds).
+
+### 1.2 Match terminal selection
+
+File: `kanban/web-ui/src/terminal/theme-colors.ts`
+
+- [x] Same background / selection as the new surfaces.
+
+### 1.3 Update token docs
+
+File: `kanban/AGENTS.md` (design tokens section)
+
+- [x] Replace GitHub-blue examples if they still appear. New hex values must match `globals.css`.
+
+### 1.4 Verify
+
+- [x] App boots, no visual regressions that hide text (contrast on tabs, buttons, Phuong panel).
+- [x] Existing sidebar/PTY still work; they just sit on warmer surfaces.
+
+**Checkpoint:** Token PR. No new components.
+
+> **Done** — `9341527`. Warm Pepper/BBQ/Char-inspired surfaces, parchment text, Phuong orange accent kept. Vite + runtime boot; sidebar, Phuong panel, and bottom PTY readable. No new components. Hex in `globals.css` / `theme-colors.ts` / `AGENTS.md` match.
+
+---
+
+## Phase 2: Ledger schema and API (no UI redesign)
+
+### 2.1 Add SQLite module
+
+New: `kanban/src/ledger/` (schema, migrations, queries, `appendEvent`).
+
+Tables: `projects`, `outcomes`, `agent_runs`, `events` as specified in the hierarchy plan.
+
+Single-user file location: under the existing runtime home (e.g. `~/.cline/kanban/ledger.sqlite`), not inside a git repo.
+
+### 2.2 Import existing workspaces
+
+On boot or first ledger open:
+
+- Each Kanban workspace → `projects` row
+- Each board card → one `outcomes` row + one `agent_runs` row
+- Do not invent a tool trail from old PTY logs
+
+Keep writing `board.json` until Phase 2.4 so current UI still works.
+
+### 2.3 tRPC read path
+
+Files: `kanban/src/trpc/runtime-api.ts` or a new `ledger-api.ts` wired in `app-router.ts` / `runtime-server.ts`.
+
+Minimum procedures:
+
+- `listProjects` (can wrap existing)
+- `listOutcomes(projectId)`
+- `listRuns(outcomeId)`
+- `listEvents(outcomeId)`
+
+### 2.4 Dual-write from task create/start
+
+When today’s `create_chat` / `addTaskToColumn` / `startTask` fire, also insert outcome + run rows and a `spawn` event if a process starts.
+
+Files:
+
+- `kanban/src/manager/phuong-tools.ts`
+- `kanban/src/state/workspace-state.ts` or the runtime API that mutates the board
+- `kanban/src/terminal/session-manager.ts`
+
+### 2.5 Verify
+
+- Create a chat via Phuong or Dashboard.
+- SQLite has project, outcome, run.
+- Old UI still functions (still board-backed).
+
+**Checkpoint:** Ledger exists and dual-writes. UI unchanged except tokens from Phase 1.
+
+---
+
+## Phase 3: Structured events into the trail
+
+Without this, Phase 5 is makeup on a terminal.
+
+### 3.1 Phuong events
+
+File: `kanban/src/manager/phuong-session.ts`
+
+On SDK session events, `appendEvent` with `run_id` null, `kind` message/tool/system as appropriate. Scrub credentials (existing `credential-scrubber.ts`).
+
+### 3.2 Pi worker events
+
+Prefer, in order:
+
+1. pi RPC / JSON stream if we can subscribe without dropping the PTY
+2. Parse session JSONL with `parseSessionEntries` (already used in `session-history.ts`)
+3. Last resort: status hooks only (`agent_start` / `agent_end` / `STATUS:`) — better than nothing, not enough for tool cards
+
+File: `kanban/src/terminal/agent-session-adapters.ts` plus a small ingest helper under `kanban/src/ledger/` or `kanban/src/manager/`.
+
+Map `STATUS:` (`task-status-protocol.ts`) to run `reported_status` and a `status` event.
+
+### 3.3 Gates and artifacts
+
+`run_gate` / `attach_artifact` write `gate` / `artifact` events keyed by `run_id` / `outcome_id`.
+
+### 3.4 Live stream
+
+File: `kanban/src/server/runtime-state-hub.ts`
+
+Broadcast new events so the client can append without polling.
+
+### 3.5 Verify
+
+- One Phuong turn + one pi run produces inspectable `events` rows (messages and at least spawn/status).
+- Tool calls appear as rows when ingest path 1 or 2 works.
+
+**Checkpoint:** The database has a real trail. GUI still old.
+
+---
+
+## Phase 4: Outcome is the unit (runtime nouns)
+
+### 4.1 API contract
+
+File: `kanban/src/core/api-contract.ts`
+
+Add outcome/run/event types. Stop adding fields to `RuntimeBoardCard` for product features.
+
+### 4.2 Phuong tools
+
+File: `kanban/src/manager/phuong-tools.ts` and `phuong-context.ts`
+
+- `create_outcome` / `spawn_run` (keep `create_chat` as a compatibility alias that creates outcome+run for one release)
+- `list_outcomes` / `list_runs`
+- Prompt contract stays on the **outcome** description; run prompt is the unit slice
+
+### 4.3 Status without columns
+
+Kanban hooks that move cards between columns should instead update `outcomes.status` / `agent_runs.status`.
+
+File: `kanban/src/terminal/agent-session-adapters.ts`, hook notify path.
+
+### 4.4 Verify
+
+- Multi-unit Phuong request creates one outcome and N runs.
+- `list_chats` still works via alias or is removed after UI cutover.
+
+**Checkpoint:** Domain matches the hierarchy plan. Board JSON is compatibility only.
+
+---
+
+## Phase 5: Trail UI + quiet chrome (the Crush steal)
+
+Depends on Phase 1 tokens and Phase 3 events.
+
+### 5.1 Trail components
+
+New: `kanban/web-ui/src/components/trail/`
+
+Implement the card map in the visual plan. Data from `listEvents` + live hub.
+
+### 5.2 Project tabs and outcome header
+
+Files:
+
+- `kanban/web-ui/src/components/top-bar.tsx` — small project tabs
+- `kanban/web-ui/src/App.tsx` — main view is selected outcome + trail
+- Retire `project-navigation-panel.tsx` as the primary nav (keep a compact outcome/run list if needed)
+
+### 5.3 Phuong panel
+
+File: `kanban/web-ui/src/components/phuong/phuong-chat-panel.tsx`
+
+Same tokens and card density. Watch-only banner unchanged.
+
+### 5.4 Demote PTY
+
+File: `kanban/web-ui/src/components/detail-panels/agent-terminal-panel.tsx`
+
+Optional disclosure on a run (“live terminal”). Default view is the trail.
+
+### 5.5 Verify
+
+- Opening an outcome shows a Crush-like stream from DB events.
+- Tool cards, spawn rows, status pills visible on a real run.
+- No Crush/Charm branding.
+- Interject still unlocks worker input.
+- Phone-width: tabs + trail usable (scroll, no kanban columns).
+
+**Checkpoint:** This is the user-visible product cutover.
+
+---
+
+## Phase 6: Stop writing the board
+
+### 6.1 Reads from ledger only
+
+Workspace UI and Phuong tools no longer require `board.json` for listing or status.
+
+### 6.2 Stop column mutations
+
+File: `kanban/src/core/task-board-mutations.ts` — unused by product paths (may remain for tests until deleted).
+
+### 6.3 Verify
+
+- Fresh project: no dependence on board columns for a full outcome → runs → trail loop.
+- Restart process: outcomes, runs, events reload from SQLite.
+
+**Checkpoint:** Kanban board is leftover code, not the source of truth.
+
+---
+
+## Phase 7: Cleanup (only after Phase 6 is stable)
+
+- Remove or archive unused board UI (`kanban-board.tsx`, `board-card.tsx`, drag-and-drop) if still shipped in the bundle.
+- Drop `create_chat` alias if Phuong prompt no longer uses it.
+- Do **not** add Crush to `agent-catalog.ts`.
+- Optional: snapshot `board.json` importer tests with a fixture workspace.
+
+---
+
+## Explicit non-goals (do not sneak into a phase)
+
+- Installing or spawning Crush
+- Postgres / multi-user
+- Pixel-perfect Charmtone hex from Crush source
+- Recreating Bubble Tea layouts in the browser
+- Making PTY parse the primary trail
+
+---
+
+## Suggested PR slices
+
+| PR | Phases | Notes |
+|---|---|---|
+| Docs | 0 | This change |
+| Tokens | 1 | Visual, low risk |
+| Ledger dual-write | 2 | Backend |
+| Event ingest | 3 | Backend |
+| Nouns | 4 | Phuong tools + contract |
+| Cutover UI | 5 | Tabs + trail |
+| Board off | 6–7 | Delete SoT, then dead UI |
+
+Do not combine Phase 5 with Phase 2. The trail must read real events.
+
+---
+
+## After this runsheet
+
+- Memory write-back (old Phase 7 in `docs/BUILD-RUNSHEET.md`) still applies, keyed by `outcome_id`.
+- Orchestration Phase B (verifier role) from `docs/PHUONG-ORCHESTRATE-ADOPTION-PLAN.md` becomes a `agent_runs.role = verifier` row, not a special chat type.
