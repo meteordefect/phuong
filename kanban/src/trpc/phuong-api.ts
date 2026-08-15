@@ -1,22 +1,18 @@
+import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { access } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
+import type { RuntimeBoardCard, RuntimeBoardData, RuntimeTaskArtifact, RuntimeTaskTier } from "../core/api-contract.js";
+import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint.js";
+import { moveTaskToColumn } from "../core/task-board-mutations.js";
+import { recordCreatedChatIntent } from "../ledger/sync.js";
+import { getActiveTurn, getAvailableModels, getSessionStats } from "../manager/phuong-session.js";
 import type { BoardOperations } from "../manager/phuong-tools.js";
-import { getAvailableModels, getSessionStats, getActiveTurn } from "../manager/phuong-session.js";
 import { listSessions, loadSession } from "../manager/session-history.js";
 import { parseTaskAgentStatus } from "../manager/task-status-protocol.js";
-import { moveTaskToColumn } from "../core/task-board-mutations.js";
-import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint.js";
 import { loadWorkspaceContext, mutateWorkspaceState } from "../state/workspace-state.js";
-import type {
-	RuntimeBoardCard,
-	RuntimeBoardData,
-	RuntimeTaskArtifact,
-	RuntimeTaskTier,
-} from "../core/api-contract.js";
 import type { RuntimeAppRouter } from "./app-router.js";
 
 const execFileAsync = promisify(execFile);
@@ -67,10 +63,7 @@ function isPathInsideWorktree(worktreePath: string, candidatePath: string): bool
 	return relativePath !== "" && !relativePath.startsWith("..") && !isAbsolute(relativePath);
 }
 
-export function createBoardOperations(
-	workspacePath: string,
-	onBoardMutated?: () => void,
-): BoardOperations {
+export function createBoardOperations(workspacePath: string, onBoardMutated?: () => void): BoardOperations {
 	return {
 		createCard: async (prompt: string, baseRef?: string, options?: { model?: string; tier?: RuntimeTaskTier }) => {
 			const cardId = randomUUID().slice(0, 8);
@@ -97,6 +90,22 @@ export function createBoardOperations(
 
 			onBoardMutated?.();
 			return { cardId, model: options?.model, tier: options?.tier };
+		},
+
+		recordCreatedChat: async (input) => {
+			try {
+				const workspace = await loadWorkspaceContext(workspacePath);
+				recordCreatedChatIntent({
+					projectId: workspace.workspaceId,
+					repoPath: workspace.repoPath,
+					cardId: input.cardId,
+					prompt: input.prompt,
+					model: input.model,
+					tier: input.tier,
+				});
+			} catch {
+				// Board write already succeeded; ledger dual-write is best-effort.
+			}
 		},
 
 		listCards: async () => {
@@ -257,7 +266,8 @@ export function createBoardOperations(
 						message?: string;
 					};
 					const exitCode = typeof err.code === "number" ? err.code : 1;
-					const output = `${err.stdout ?? ""}${err.stderr ? `\n${err.stderr}` : ""}`.trim() || err.message || String(error);
+					const output =
+						`${err.stdout ?? ""}${err.stderr ? `\n${err.stderr}` : ""}`.trim() || err.message || String(error);
 					return { ok: true, exitCode, output };
 				}
 			} catch (error) {

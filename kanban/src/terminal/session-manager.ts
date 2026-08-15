@@ -9,6 +9,7 @@ import type {
 	RuntimeTaskSessionSummary,
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract.js";
+import { recordRunSpawn } from "../ledger/sync.js";
 import {
 	type AgentAdapterLaunchInput,
 	type AgentOutputTransitionDetector,
@@ -477,6 +478,14 @@ export class TerminalSessionManager implements TerminalSessionService {
 			previousTurnCheckpoint: null,
 		});
 		this.emitSummary(entry.summary);
+		recordRunSpawn({
+			taskId: request.taskId,
+			workspaceId: request.workspaceId,
+			agent: request.agentId,
+			model: request.model,
+			prompt: request.prompt,
+			worktreePath: request.cwd,
+		});
 
 		return cloneSummary(entry.summary);
 	}

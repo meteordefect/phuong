@@ -37,6 +37,12 @@ export interface BoardOperations {
 		artifact: Omit<RuntimeTaskArtifact, "id" | "createdAt"> & { id?: string },
 	) => Promise<{ ok: boolean; artifact?: RuntimeTaskArtifact; error?: string }>;
 	listArtifacts?: (taskId: string) => Promise<RuntimeTaskArtifact[]>;
+	recordCreatedChat?: (input: {
+		cardId: string;
+		prompt: string;
+		model?: string;
+		tier?: RuntimeTaskTier;
+	}) => Promise<void>;
 }
 
 /** Required sections for every unit prompt passed to create_chat (Phase A contract). */
@@ -94,6 +100,12 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 			};
 			const resolvedModel = resolveChatModel({ model, tier });
 			const result = await boardOps.createCard(prompt, undefined, {
+				model: resolvedModel,
+				tier,
+			});
+			await boardOps.recordCreatedChat?.({
+				cardId: result.cardId,
+				prompt,
 				model: resolvedModel,
 				tier,
 			});

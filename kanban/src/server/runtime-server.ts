@@ -20,7 +20,9 @@ import { loadWorkspaceContextById } from "../state/workspace-state.js";
 import type { TerminalSessionManager } from "../terminal/session-manager.js";
 import { createTerminalWebSocketBridge } from "../terminal/ws-server.js";
 import { type RuntimeTrpcContext, type RuntimeTrpcWorkspaceScope, runtimeAppRouter } from "../trpc/app-router.js";
+import { importWorkspacesFromBoard } from "../ledger/index.js";
 import { createHooksApi } from "../trpc/hooks-api.js";
+import { createLedgerApi } from "../trpc/ledger-api.js";
 import { createMemoryApi } from "../trpc/memory-api.js";
 import { createBoardOperations, createPhuongApi } from "../trpc/phuong-api.js";
 import { phuongChatStream } from "../manager/phuong-session.js";
@@ -167,6 +169,13 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 
 	const memoryApi = createMemoryApi();
 	const phuongApi = createPhuongApi();
+	const ledgerApi = createLedgerApi();
+	try {
+		await importWorkspacesFromBoard();
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		deps.warn(`ledger import on boot failed: ${message}`);
+	}
 
 	const createTrpcContext = async (req: IncomingMessage): Promise<RuntimeTrpcContext> => {
 		const requestUrl = new URL(req.url ?? "/", "http://localhost");
@@ -224,6 +233,7 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 			}),
 			memoryApi,
 			phuongApi,
+			ledgerApi,
 		};
 	};
 

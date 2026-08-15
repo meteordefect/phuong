@@ -19,6 +19,7 @@ import {
 import { createGitProcessEnv } from "../core/git-process-env.js";
 import { updateTaskDependencies } from "../core/task-board-mutations.js";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system.js";
+import { syncBoardCardsToLedger } from "../ledger/sync.js";
 
 const RUNTIME_HOME_PARENT_DIR = ".cline";
 const RUNTIME_HOME_DIR = "kanban";
@@ -677,6 +678,13 @@ export async function saveWorkspaceState(
 			lock: null,
 		});
 
+		syncBoardCardsToLedger({
+			projectId: context.workspaceId,
+			repoPath: context.repoPath,
+			board,
+			sessions,
+		});
+
 		return toWorkspaceStateResponse(context, board, sessions, nextRevision);
 	});
 }
@@ -730,6 +738,13 @@ export async function mutateWorkspaceState<T>(
 		});
 		await lockedFileSystem.writeJsonFileAtomic(getWorkspaceMetaPath(context.workspaceId), nextMeta, {
 			lock: null,
+		});
+
+		syncBoardCardsToLedger({
+			projectId: context.workspaceId,
+			repoPath: context.repoPath,
+			board: nextBoard,
+			sessions: nextSessions,
 		});
 
 		return {
