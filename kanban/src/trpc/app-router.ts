@@ -4,6 +4,7 @@
 import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { z } from "zod";
+import type { LedgerApi } from "./ledger-api.js";
 import type { MemoryApi } from "./memory-api.js";
 import type { PhuongApi } from "./phuong-api.js";
 
@@ -320,6 +321,7 @@ export interface RuntimeTrpcContext {
 	};
 	memoryApi: MemoryApi;
 	phuongApi: PhuongApi;
+	ledgerApi: LedgerApi;
 }
 
 interface RuntimeTrpcContextWithWorkspaceScope extends RuntimeTrpcContext {
@@ -664,6 +666,26 @@ export const runtimeAppRouter = t.router({
 		sync: t.procedure.mutation(async ({ ctx }) => {
 			return await ctx.memoryApi.sync();
 		}),
+	}),
+	ledger: t.router({
+		listProjects: t.procedure.query(async ({ ctx }) => {
+			return await ctx.ledgerApi.listProjects();
+		}),
+		listOutcomes: t.procedure
+			.input(z.object({ projectId: z.string().min(1) }))
+			.query(async ({ ctx, input }) => {
+				return await ctx.ledgerApi.listOutcomes(input.projectId);
+			}),
+		listRuns: t.procedure
+			.input(z.object({ outcomeId: z.string().min(1) }))
+			.query(async ({ ctx, input }) => {
+				return await ctx.ledgerApi.listRuns(input.outcomeId);
+			}),
+		listEvents: t.procedure
+			.input(z.object({ outcomeId: z.string().min(1) }))
+			.query(async ({ ctx, input }) => {
+				return await ctx.ledgerApi.listEvents(input.outcomeId);
+			}),
 	}),
 	phuong: t.router({
 		getModels: t.procedure.query(async ({ ctx }) => {

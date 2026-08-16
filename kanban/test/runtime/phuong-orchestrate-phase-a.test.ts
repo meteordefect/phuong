@@ -1,13 +1,7 @@
-import { describe, expect, it } from "vitest";
-import {
-	assemblePhuongSystemPrompt,
-	getPhuongFallbackSystemPrompt,
-} from "../../src/manager/phuong-context.js";
-import {
-	CREATE_CHAT_PROMPT_CONTRACT,
-	createPhuongTools,
-} from "../../src/manager/phuong-tools.js";
+import { describe, expect, it, vi } from "vitest";
+import { assemblePhuongSystemPrompt, getPhuongFallbackSystemPrompt } from "../../src/manager/phuong-context.js";
 import type { BoardOperations } from "../../src/manager/phuong-tools.js";
+import { CREATE_CHAT_PROMPT_CONTRACT, createPhuongTools } from "../../src/manager/phuong-tools.js";
 
 const noopBoardOps: BoardOperations = {
 	createCard: async () => ({ cardId: "test-card" }),
@@ -82,6 +76,45 @@ describe("Phuong Phase A orchestration protocol", () => {
 		expect(tools.some((t) => t.name === "run_gate")).toBe(true);
 		expect(tools.some((t) => t.name === "attach_artifact")).toBe(true);
 		expect(tools.some((t) => t.name === "list_artifacts")).toBe(true);
+	});
+
+	it("create_chat dual-writes chat intent before start", async () => {
+		const recordCreatedChat = vi.fn(async () => undefined);
+		const createCard = vi.fn(async () => ({
+			cardId: "chat-22",
+			model: "kimi-coding/kimi-k2.7",
+			tier: "T1" as const,
+		}));
+		const startTask = vi.fn(async () => ({ ok: true }));
+		const tools = createPhuongTools({
+			...noopBoardOps,
+			createCard,
+			startTask,
+			recordCreatedChat,
+		});
+		const createChat = tools.find((t) => t.name === "create_chat");
+		if (!createChat) {
+			throw new Error("create_chat tool is missing.");
+		}
+		await createChat.execute(
+			"tool-1",
+			{
+				prompt:
+					"Objective: ship\nIn-scope / out-of-scope: ui\nDone-criteria: tests\nFiles / subsystems: app\nSTATUS: DONE",
+				tier: "T1",
+			},
+			undefined,
+			undefined,
+			{} as never,
+		);
+		expect(createCard).toHaveBeenCalled();
+		expect(recordCreatedChat).toHaveBeenCalledWith(
+			expect.objectContaining({
+				cardId: "chat-22",
+				tier: "T1",
+			}),
+		);
+		expect(startTask).toHaveBeenCalledWith("chat-22");
 	});
 
 	it("check_chat_status description encodes Gate 1 and triage routing", () => {

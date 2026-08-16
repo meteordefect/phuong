@@ -58,19 +58,17 @@ File: `kanban/AGENTS.md` (design tokens section)
 
 ### 2.1 Add SQLite module
 
-New: `kanban/src/ledger/` (schema, migrations, queries, `appendEvent`).
-
-Tables: `projects`, `outcomes`, `agent_runs`, `events` as specified in the hierarchy plan.
-
-Single-user file location: under the existing runtime home (e.g. `~/.cline/kanban/ledger.sqlite`), not inside a git repo.
+- [x] New: `kanban/src/ledger/` (schema, migrations, queries, `appendEvent`).
+- [x] Tables: `projects`, `outcomes`, `agent_runs`, `events` as specified in the hierarchy plan.
+- [x] Single-user file location: under the existing runtime home (e.g. `~/.cline/kanban/ledger.sqlite`), not inside a git repo.
 
 ### 2.2 Import existing workspaces
 
 On boot or first ledger open:
 
-- Each Kanban workspace → `projects` row
-- Each board card → one `outcomes` row + one `agent_runs` row
-- Do not invent a tool trail from old PTY logs
+- [x] Each Kanban workspace → `projects` row
+- [x] Each board card → one `outcomes` row + one `agent_runs` row
+- [x] Do not invent a tool trail from old PTY logs
 
 Keep writing `board.json` until Phase 2.4 so current UI still works.
 
@@ -78,30 +76,28 @@ Keep writing `board.json` until Phase 2.4 so current UI still works.
 
 Files: `kanban/src/trpc/runtime-api.ts` or a new `ledger-api.ts` wired in `app-router.ts` / `runtime-server.ts`.
 
-Minimum procedures:
-
-- `listProjects` (can wrap existing)
-- `listOutcomes(projectId)`
-- `listRuns(outcomeId)`
-- `listEvents(outcomeId)`
+- [x] `listProjects` (can wrap existing)
+- [x] `listOutcomes(projectId)`
+- [x] `listRuns(outcomeId)`
+- [x] `listEvents(outcomeId)`
 
 ### 2.4 Dual-write from task create/start
 
 When today’s `create_chat` / `addTaskToColumn` / `startTask` fire, also insert outcome + run rows and a `spawn` event if a process starts.
 
-Files:
-
-- `kanban/src/manager/phuong-tools.ts`
-- `kanban/src/state/workspace-state.ts` or the runtime API that mutates the board
-- `kanban/src/terminal/session-manager.ts`
+- [x] `kanban/src/manager/phuong-tools.ts`
+- [x] `kanban/src/state/workspace-state.ts` or the runtime API that mutates the board
+- [x] `kanban/src/terminal/session-manager.ts`
 
 ### 2.5 Verify
 
-- Create a chat via Phuong or Dashboard.
-- SQLite has project, outcome, run.
-- Old UI still functions (still board-backed).
+- [x] Create a chat via Phuong or Dashboard.
+- [x] SQLite has project, outcome, run.
+- [x] Old UI still functions (still board-backed).
 
 **Checkpoint:** Ledger exists and dual-writes. UI unchanged except tokens from Phase 1.
+
+> **Done** — `4d0c584`. `kanban/src/ledger/` at `~/.cline/kanban/ledger.sqlite`. Boot import + tRPC `ledger.list*`. Dual-write from board mutations / `create_chat`; `spawn` only when `session-manager` starts a process. board.json still written. 34 tests + scripted create-chat verify (project/outcome/queued run; no invented events).
 
 ---
 
