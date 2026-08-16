@@ -401,6 +401,24 @@ export const runtimeStateStreamErrorMessageSchema = z.object({
 });
 export type RuntimeStateStreamErrorMessage = z.infer<typeof runtimeStateStreamErrorMessageSchema>;
 
+export const runtimeLedgerEventSchema = z.object({
+	id: z.string(),
+	projectId: z.string(),
+	outcomeId: z.string(),
+	runId: z.string().nullable(),
+	kind: z.string(),
+	payload: z.record(z.string(), z.unknown()),
+	createdAt: z.number(),
+});
+export type RuntimeLedgerEvent = z.infer<typeof runtimeLedgerEventSchema>;
+
+export const runtimeStateStreamLedgerEventsMessageSchema = z.object({
+	type: z.literal("ledger_events_appended"),
+	workspaceId: z.string(),
+	events: z.array(runtimeLedgerEventSchema),
+});
+export type RuntimeStateStreamLedgerEventsMessage = z.infer<typeof runtimeStateStreamLedgerEventsMessageSchema>;
+
 export const runtimeStateStreamMessageSchema = z.discriminatedUnion("type", [
 	runtimeStateStreamSnapshotMessageSchema,
 	runtimeStateStreamWorkspaceStateMessageSchema,
@@ -411,6 +429,7 @@ export const runtimeStateStreamMessageSchema = z.discriminatedUnion("type", [
 	runtimeStateStreamTaskChatMessageSchema,
 	runtimeStateStreamMcpAuthUpdatedMessageSchema,
 	runtimeStateStreamClineSessionContextUpdatedMessageSchema,
+	runtimeStateStreamLedgerEventsMessageSchema,
 	runtimeStateStreamErrorMessageSchema,
 ]);
 export type RuntimeStateStreamMessage = z.infer<typeof runtimeStateStreamMessageSchema>;

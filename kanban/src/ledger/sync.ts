@@ -421,3 +421,121 @@ export function recordPhuongTrailEvent(input: {
 		return null;
 	}
 }
+
+const GATE_OUTPUT_MAX_CHARS = 4000;
+
+function resolveRunAndOutcome(
+	ledger: LedgerDatabase,
+	input: { taskId: string; workspaceId?: string; repoPath?: string },
+): { runId: string; outcomeId: string; projectId: string } | null {
+	let run = getRun(ledger, input.taskId);
+	let outcome = getOutcome(ledger, input.taskId);
+	if (!run || !outcome) {
+		if (!input.workspaceId) {
+			return null;
+		}
+		recordOutcomeAndRunFromCard(
+			{
+				projectId: input.workspaceId,
+				repoPath: input.repoPath ?? "",
+			},
+			{
+				cardId: input.taskId,
+				prompt: "",
+				columnId: "backlog",
+			},
+			ledger,
+		);
+		run = getRun(ledger, input.taskId);
+		outcome = getOutcome(ledger, input.taskId);
+	}
+	if (!run || !outcome) {
+		return null;
+	}
+	return {
+		runId: run.id,
+		outcomeId: outcome.id,
+		projectId: outcome.projectId,
+	};
+}
+
+export function recordGateEvent(input: {
+	taskId: string;
+	workspaceId?: string;
+	repoPath?: string;
+	command: string;
+	exitCode: number | null;
+	output: string;
+	error?: string;
+	ledger?: LedgerDatabase;
+}): LedgerEventRecord | null {
+	try {
+		const ledger = input.ledger ?? openLedger();
+		const identity = resolveRunAndOutcome(ledger, input);
+		if (!identity) {
+			return null;
+		}
+		const payload = scrubEventPayload({
+			command: input.command,
+			exitCode: input.exitCode,
+			output: input.output,
+			passed: input.exitCode === 0,
+			error: input.error,
+			source: "phuong",
+			taskId: input.taskId,
+		});
+		if (typeof payload.output === "string" && payload.output.length > GATE_OUTPUT_MAX_CHARS) {
+			payload.output = payload.output.slice(0, GATE_OUTPUT_MAX_CHARS);
+		}
+		return appendEvent(ledger, {
+			projectId: identity.projectId,
+			outcomeId: identity.outcomeId,
+			runId: identity.runId,
+			kind: "gate",
+			payload,
+		});
+	} catch (error) {
+		warnLedgerFailure("gate", error);
+		return null;
+	}
+}
+
+export function recordArtifactEvent(input: {
+	taskId: string;
+	workspaceId?: string;
+	repoPath?: string;
+	artifact: {
+		id: string;
+		path: string;
+		mimeType: string;
+		label?: string;
+		createdAt?: number;
+	};
+	ledger?: LedgerDatabase;
+}): LedgerEventRecord | null {
+	try {
+		const ledger = input.ledger ?? openLedger();
+		const identity = resolveRunAndOutcome(ledger, input);
+		if (!identity) {
+			return null;
+		}
+		return appendEvent(ledger, {
+			projectId: identity.projectId,
+			outcomeId: identity.outcomeId,
+			runId: identity.runId,
+			kind: "artifact",
+			payload: scrubEventPayload({
+				id: input.artifact.id,
+				path: input.artifact.path,
+				mimeType: input.artifact.mimeType,
+				label: input.artifact.label,
+				source: "phuong",
+				taskId: input.taskId,
+			}),
+			createdAt: input.artifact.createdAt,
+		});
+	} catch (error) {
+		warnLedgerFailure("artifact", error);
+		return null;
+	}
+}

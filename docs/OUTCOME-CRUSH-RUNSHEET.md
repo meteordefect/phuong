@@ -143,18 +143,27 @@ Map `STATUS:` (`task-status-protocol.ts`) to run `reported_status` and a `status
 
 `run_gate` / `attach_artifact` write `gate` / `artifact` events keyed by `run_id` / `outcome_id`.
 
+- [x] `recordGateEvent` / `recordArtifactEvent` in `kanban/src/ledger/sync.ts` (append + scrub).
+- [x] `run_gate` / `attach_artifact` in `phuong-api.ts` write those events after a completed gate or attach.
+
 ### 3.4 Live stream
 
 File: `kanban/src/server/runtime-state-hub.ts`
 
 Broadcast new events so the client can append without polling.
 
+- [x] `appendEvent` notifies `onLedgerEventAppended`.
+- [x] Hub batches and broadcasts `ledger_events_appended`.
+- [x] Client stream hook appends by `outcome_id` (no trail cards).
+
 ### 3.5 Verify
 
-- One Phuong turn + one pi run produces inspectable `events` rows (messages and at least spawn/status).
-- Tool calls appear as rows when ingest path 1 or 2 works.
+- [x] One Phuong turn + one pi run produces inspectable `events` rows (messages and at least spawn/status).
+- [x] Tool calls appear as rows when ingest path 1 or 2 works.
 
 **Checkpoint:** The database has a real trail. GUI still old.
+
+> **Done (3.3–3.5)** — `run_gate` / `attach_artifact` append scrubbed `gate` / `artifact` events keyed by `run_id` + `outcome_id`. Hub broadcasts `ledger_events_appended` from `appendEvent`. Client stream can append without polling. Tests: Phuong turn (`run_id` null) + pi run (spawn / tool / status) + gate / artifact. No trail UI.
 
 ---
 

@@ -6,8 +6,10 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { ClineTaskMessage, ClineTaskSessionService } from "../cline-sdk/cline-task-session-service.js";
 import type {
 	RuntimeClineMcpServerAuthStatus,
+	RuntimeLedgerEvent,
 	RuntimeStateStreamClineSessionContextUpdatedMessage,
 	RuntimeStateStreamErrorMessage,
+	RuntimeStateStreamLedgerEventsMessage,
 	RuntimeStateStreamMcpAuthUpdatedMessage,
 	RuntimeStateStreamMessage,
 	RuntimeStateStreamProjectsMessage,
@@ -19,11 +21,14 @@ import type {
 	RuntimeStateStreamWorkspaceStateMessage,
 	RuntimeTaskSessionSummary,
 } from "../core/api-contract.js";
+import { onLedgerEventAppended } from "../ledger/queries.js";
+import type { LedgerEventRecord } from "../ledger/types.js";
 import type { TerminalSessionManager } from "../terminal/session-manager.js";
 import { createWorkspaceMetadataMonitor } from "./workspace-metadata-monitor.js";
 import type { ResolvedWorkspaceStreamTarget, WorkspaceRegistry } from "./workspace-registry.js";
 
 const TASK_SESSION_STREAM_BATCH_MS = 150;
+const LEDGER_EVENT_STREAM_BATCH_MS = 150;
 
 export interface DisposeRuntimeStateWorkspaceOptions {
 	disconnectClients?: boolean;
@@ -55,6 +60,7 @@ export interface RuntimeStateHub {
 	broadcastClineMcpAuthStatusesUpdated: (statuses: RuntimeClineMcpServerAuthStatus[]) => void;
 	bumpClineSessionContextVersion: () => void;
 	broadcastTaskReadyForReview: (workspaceId: string, taskId: string) => void;
+	broadcastLedgerEvents: (workspaceId: string, events: RuntimeLedgerEvent[]) => void;
 	close: () => Promise<void>;
 }
 
@@ -79,6 +85,8 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 	const clinePreviousSummaryByWorkspaceId = new Map<string, Map<string, RuntimeTaskSessionSummary>>();
 	const pendingTaskSessionSummariesByWorkspaceId = new Map<string, Map<string, RuntimeTaskSessionSummary>>();
 	const taskSessionBroadcastTimersByWorkspaceId = new Map<string, NodeJS.Timeout>();
+	const pendingLedgerEventsByWorkspaceId = new Map<string, RuntimeLedgerEvent[]>();
+	const ledgerEventBroadcastTimersByWorkspaceId = new Map<string, NodeJS.Timeout>();
 	const runtimeStateClientsByWorkspaceId = new Map<string, Set<WebSocket>>();
 	const runtimeStateClients = new Set<WebSocket>();
 	const runtimeStateWorkspaceIdByClient = new Map<WebSocket, string>();
@@ -273,6 +281,7 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 		}
 		clineMessageUnsubscribeByWorkspaceId.delete(workspaceId);
 		disposeTaskSessionSummaryBroadcast(workspaceId);
+		disposeLedgerEventBroadcast(workspaceId);
 		workspaceMetadataMonitor.disposeWorkspace(workspaceId);
 
 		if (!options?.disconnectClients) {
@@ -342,6 +351,72 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 			sendRuntimeStateMessage(client, payload);
 		}
 	};
+
+	const toStreamLedgerEvent = (event: LedgerEventRecord): RuntimeLedgerEvent => ({
+		id: event.id,
+		projectId: event.projectId,
+		outcomeId: event.outcomeId,
+		runId: event.runId,
+		kind: event.kind,
+		payload: event.payload,
+		createdAt: event.createdAt,
+	});
+
+	const broadcastLedgerEvents = (workspaceId: string, events: RuntimeLedgerEvent[]) => {
+		if (events.length === 0) {
+			return;
+		}
+		const runtimeClients = runtimeStateClientsByWorkspaceId.get(workspaceId);
+		if (!runtimeClients || runtimeClients.size === 0) {
+			return;
+		}
+		const payload: RuntimeStateStreamLedgerEventsMessage = {
+			type: "ledger_events_appended",
+			workspaceId,
+			events,
+		};
+		for (const client of runtimeClients) {
+			sendRuntimeStateMessage(client, payload);
+		}
+	};
+
+	const flushLedgerEvents = (workspaceId: string) => {
+		const pending = pendingLedgerEventsByWorkspaceId.get(workspaceId);
+		if (!pending || pending.length === 0) {
+			return;
+		}
+		pendingLedgerEventsByWorkspaceId.delete(workspaceId);
+		broadcastLedgerEvents(workspaceId, pending);
+	};
+
+	const queueLedgerEventBroadcast = (event: LedgerEventRecord) => {
+		const workspaceId = event.projectId;
+		const pending = pendingLedgerEventsByWorkspaceId.get(workspaceId) ?? [];
+		pending.push(toStreamLedgerEvent(event));
+		pendingLedgerEventsByWorkspaceId.set(workspaceId, pending);
+		if (ledgerEventBroadcastTimersByWorkspaceId.has(workspaceId)) {
+			return;
+		}
+		const timer = setTimeout(() => {
+			ledgerEventBroadcastTimersByWorkspaceId.delete(workspaceId);
+			flushLedgerEvents(workspaceId);
+		}, LEDGER_EVENT_STREAM_BATCH_MS);
+		timer.unref();
+		ledgerEventBroadcastTimersByWorkspaceId.set(workspaceId, timer);
+	};
+
+	const disposeLedgerEventBroadcast = (workspaceId: string) => {
+		const timer = ledgerEventBroadcastTimersByWorkspaceId.get(workspaceId);
+		if (timer) {
+			clearTimeout(timer);
+		}
+		ledgerEventBroadcastTimersByWorkspaceId.delete(workspaceId);
+		pendingLedgerEventsByWorkspaceId.delete(workspaceId);
+	};
+
+	const unsubscribeLedgerEvents = onLedgerEventAppended((event) => {
+		queueLedgerEventBroadcast(event);
+	});
 
 	runtimeStateWebSocketServer.on("connection", async (client: WebSocket, context: unknown) => {
 		client.on("close", () => {
@@ -563,12 +638,19 @@ export function createRuntimeStateHub(deps: CreateRuntimeStateHubDependencies): 
 		broadcastClineMcpAuthStatusesUpdated,
 		bumpClineSessionContextVersion,
 		broadcastTaskReadyForReview,
+		broadcastLedgerEvents,
 		close: async () => {
+			unsubscribeLedgerEvents();
 			for (const timer of taskSessionBroadcastTimersByWorkspaceId.values()) {
 				clearTimeout(timer);
 			}
 			taskSessionBroadcastTimersByWorkspaceId.clear();
 			pendingTaskSessionSummariesByWorkspaceId.clear();
+			for (const timer of ledgerEventBroadcastTimersByWorkspaceId.values()) {
+				clearTimeout(timer);
+			}
+			ledgerEventBroadcastTimersByWorkspaceId.clear();
+			pendingLedgerEventsByWorkspaceId.clear();
 			for (const unsubscribe of terminalSummaryUnsubscribeByWorkspaceId.values()) {
 				try {
 					unsubscribe();

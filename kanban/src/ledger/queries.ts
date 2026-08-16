@@ -345,6 +345,31 @@ export function updateOutcomeStatus(
 	return getOutcome(ledger, outcomeId);
 }
 
+type LedgerEventListener = (event: LedgerEventRecord) => void;
+
+const ledgerEventListeners = new Set<LedgerEventListener>();
+
+export function onLedgerEventAppended(listener: LedgerEventListener): () => void {
+	ledgerEventListeners.add(listener);
+	return () => {
+		ledgerEventListeners.delete(listener);
+	};
+}
+
+export function resetLedgerEventListeners(): void {
+	ledgerEventListeners.clear();
+}
+
+function notifyLedgerEventListeners(event: LedgerEventRecord): void {
+	for (const listener of ledgerEventListeners) {
+		try {
+			listener(event);
+		} catch {
+			// Listener failures must not roll back the append.
+		}
+	}
+}
+
 export function appendEvent(ledger: LedgerDatabase, input: LedgerAppendEventInput): LedgerEventRecord {
 	const id = randomUUID();
 	const createdAt = input.createdAt ?? Date.now();
@@ -359,5 +384,7 @@ export function appendEvent(ledger: LedgerDatabase, input: LedgerAppendEventInpu
 	if (!row) {
 		throw new Error(`Failed to append event ${id}.`);
 	}
-	return mapEvent(row);
+	const event = mapEvent(row);
+	notifyLedgerEventListeners(event);
+	return event;
 }

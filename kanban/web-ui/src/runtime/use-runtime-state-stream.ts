@@ -3,8 +3,10 @@ import { useEffect, useReducer } from "react";
 import { getSessionToken } from "@/auth/session-token-store";
 import type {
 	RuntimeClineMcpServerAuthStatus,
+	RuntimeLedgerEvent,
 	RuntimeProjectSummary,
 	RuntimeStateStreamClineSessionContextUpdatedMessage,
+	RuntimeStateStreamLedgerEventsMessage,
 	RuntimeStateStreamMcpAuthUpdatedMessage,
 	RuntimeStateStreamMessage,
 	RuntimeStateStreamProjectsMessage,
@@ -58,6 +60,8 @@ export interface UseRuntimeStateStreamResult {
 	taskChatMessagesByTaskId: Record<string, RuntimeTaskChatMessage[]>;
 	latestTaskReadyForReview: RuntimeStateStreamTaskReadyForReviewMessage | null;
 	latestMcpAuthStatuses: RuntimeClineMcpServerAuthStatus[] | null;
+	latestLedgerEvents: RuntimeStateStreamLedgerEventsMessage | null;
+	ledgerEventsByOutcomeId: Record<string, RuntimeLedgerEvent[]>;
 	clineSessionContextVersion: number;
 	streamError: string | null;
 	isRuntimeDisconnected: boolean;
@@ -73,6 +77,8 @@ interface RuntimeStateStreamStore {
 	taskChatMessagesByTaskId: Record<string, RuntimeTaskChatMessage[]>;
 	latestTaskReadyForReview: RuntimeStateStreamTaskReadyForReviewMessage | null;
 	latestMcpAuthStatuses: RuntimeClineMcpServerAuthStatus[] | null;
+	latestLedgerEvents: RuntimeStateStreamLedgerEventsMessage | null;
+	ledgerEventsByOutcomeId: Record<string, RuntimeLedgerEvent[]>;
 	clineSessionContextVersion: number;
 	streamError: string | null;
 	isRuntimeDisconnected: boolean;
@@ -95,6 +101,7 @@ type RuntimeStateStreamAction =
 	| { type: "cline_session_context_updated"; payload: RuntimeStateStreamClineSessionContextUpdatedMessage }
 	| { type: "workspace_state_updated"; workspaceState: RuntimeWorkspaceStateResponse }
 	| { type: "task_sessions_updated"; summaries: RuntimeTaskSessionSummary[] }
+	| { type: "ledger_events_appended"; payload: RuntimeStateStreamLedgerEventsMessage }
 	| { type: "stream_error"; message: string }
 	| { type: "stream_disconnected"; message: string };
 
@@ -108,6 +115,8 @@ function createInitialRuntimeStateStreamStore(requestedWorkspaceId: string | nul
 		taskChatMessagesByTaskId: {},
 		latestTaskReadyForReview: null,
 		latestMcpAuthStatuses: null,
+		latestLedgerEvents: null,
+		ledgerEventsByOutcomeId: {},
 		clineSessionContextVersion: 0,
 		streamError: null,
 		isRuntimeDisconnected: false,
@@ -138,6 +147,24 @@ function upsertTaskChatMessage(
 	return nextMessages;
 }
 
+function appendLedgerEvents(
+	current: Record<string, RuntimeLedgerEvent[]>,
+	events: RuntimeLedgerEvent[],
+): Record<string, RuntimeLedgerEvent[]> {
+	if (events.length === 0) {
+		return current;
+	}
+	const next = { ...current };
+	for (const event of events) {
+		const existing = next[event.outcomeId] ?? [];
+		if (existing.some((item) => item.id === event.id)) {
+			continue;
+		}
+		next[event.outcomeId] = [...existing, event];
+	}
+	return next;
+}
+
 function resolveProjectIdAfterProjectsUpdate(
 	currentProjectId: string | null,
 	payload: RuntimeStateStreamProjectsMessage,
@@ -159,6 +186,8 @@ function runtimeStateStreamReducer(
 			workspaceMetadata: null,
 			latestTaskChatMessage: null,
 			taskChatMessagesByTaskId: {},
+			latestLedgerEvents: null,
+			ledgerEventsByOutcomeId: {},
 			streamError: null,
 			isRuntimeDisconnected: false,
 			hasReceivedSnapshot: false,
@@ -192,6 +221,8 @@ function runtimeStateStreamReducer(
 			taskChatMessagesByTaskId: {},
 			latestTaskReadyForReview: state.latestTaskReadyForReview,
 			latestMcpAuthStatuses: state.latestMcpAuthStatuses,
+			latestLedgerEvents: null,
+			ledgerEventsByOutcomeId: {},
 			clineSessionContextVersion: action.payload.clineSessionContextVersion,
 			streamError: null,
 			isRuntimeDisconnected: false,
@@ -209,6 +240,8 @@ function runtimeStateStreamReducer(
 			latestTaskChatMessage: didProjectChange ? null : state.latestTaskChatMessage,
 			taskChatMessagesByTaskId: didProjectChange ? {} : state.taskChatMessagesByTaskId,
 			latestTaskReadyForReview: didProjectChange ? null : state.latestTaskReadyForReview,
+			latestLedgerEvents: didProjectChange ? null : state.latestLedgerEvents,
+			ledgerEventsByOutcomeId: didProjectChange ? {} : state.ledgerEventsByOutcomeId,
 			hasReceivedSnapshot: true,
 		};
 	}
@@ -270,6 +303,13 @@ function runtimeStateStreamReducer(
 				...state.workspaceState,
 				sessions: mergeTaskSessionSummaries(state.workspaceState.sessions, action.summaries),
 			},
+		};
+	}
+	if (action.type === "ledger_events_appended") {
+		return {
+			...state,
+			latestLedgerEvents: action.payload,
+			ledgerEventsByOutcomeId: appendLedgerEvents(state.ledgerEventsByOutcomeId, action.payload.events),
 		};
 	}
 	if (action.type === "stream_error") {
@@ -448,6 +488,16 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 						});
 						return;
 					}
+					if (payload.type === "ledger_events_appended") {
+						if (payload.workspaceId !== activeWorkspaceId) {
+							return;
+						}
+						dispatch({
+							type: "ledger_events_appended",
+							payload,
+						});
+						return;
+					}
 					if (payload.type === "error") {
 						dispatch({
 							type: "stream_error",
@@ -499,6 +549,8 @@ export function useRuntimeStateStream(requestedWorkspaceId: string | null): UseR
 		taskChatMessagesByTaskId: state.taskChatMessagesByTaskId,
 		latestTaskReadyForReview: state.latestTaskReadyForReview,
 		latestMcpAuthStatuses: state.latestMcpAuthStatuses,
+		latestLedgerEvents: state.latestLedgerEvents,
+		ledgerEventsByOutcomeId: state.ledgerEventsByOutcomeId,
 		clineSessionContextVersion: state.clineSessionContextVersion,
 		streamError: state.streamError,
 		isRuntimeDisconnected: state.isRuntimeDisconnected,

@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { RuntimeBoardData } from "../../../src/core/api-contract.js";
+import { runtimeStateStreamLedgerEventsMessageSchema, type RuntimeBoardData } from "../../../src/core/api-contract.js";
 import {
 	appendEvent,
 	closeAllLedgers,
@@ -16,11 +16,15 @@ import {
 	mapPhuongSessionEventToLedger,
 	mapPiHookActivityToLedger,
 	mapPiSessionEntriesToLedger,
+	onLedgerEventAppended,
 	openLedger,
+	recordArtifactEvent,
 	recordCreatedChatIntent,
+	recordGateEvent,
 	recordPhuongTrailEvent,
 	recordPiWorkerHook,
 	recordRunSpawn,
+	resetLedgerEventListeners,
 	resetLedgerImportState,
 	syncBoardCardsToLedger,
 } from "../../../src/ledger/index.js";
@@ -63,6 +67,7 @@ async function withTemporaryHome<T>(run: () => Promise<T>): Promise<T> {
 	} finally {
 		closeAllLedgers();
 		resetLedgerImportState();
+		resetLedgerEventListeners();
 		if (previousHome === undefined) {
 			delete process.env.HOME;
 		} else {
@@ -94,6 +99,7 @@ function initGitRepository(path: string): void {
 afterEach(() => {
 	closeAllLedgers();
 	resetLedgerImportState();
+	resetLedgerEventListeners();
 });
 
 describe("Phase 2 ledger", () => {
@@ -530,6 +536,203 @@ describe("Phase 3.2 Pi worker trail events", () => {
 			expect(listOutcomes(ledger, "demo")[0]?.status).toBe("verifying");
 			expect(listEvents(ledger, "run-1").some((event) => event.kind === "status")).toBe(true);
 			expect(listEvents(ledger, "run-1").every((event) => event.runId === "run-1")).toBe(true);
+		});
+	});
+});
+
+describe("Phase 3.3 gate and artifact events", () => {
+	it("writes gate and artifact events keyed by run_id and outcome_id and scrubs credentials", async () => {
+		await withTemporaryHome(async () => {
+			recordCreatedChatIntent({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				cardId: "run-1",
+				prompt: "Ship login",
+			});
+			const gate = recordGateEvent({
+				taskId: "run-1",
+				workspaceId: "demo",
+				repoPath: "/tmp/demo",
+				command: "npm test",
+				exitCode: 0,
+				output: "ok sk-ant-abcdefghijklmnopqrstuvwxyz0123",
+			});
+			expect(gate?.kind).toBe("gate");
+			expect(gate?.runId).toBe("run-1");
+			expect(gate?.outcomeId).toBe("run-1");
+			expect(gate?.payload).toEqual(
+				expect.objectContaining({
+					command: "npm test",
+					exitCode: 0,
+					passed: true,
+					output: "ok [REDACTED]",
+					source: "phuong",
+				}),
+			);
+
+			const artifact = recordArtifactEvent({
+				taskId: "run-1",
+				workspaceId: "demo",
+				repoPath: "/tmp/demo",
+				artifact: {
+					id: "art-1",
+					path: ".phuong/artifacts/login.png",
+					mimeType: "image/png",
+					label: "login",
+				},
+			});
+			expect(artifact?.kind).toBe("artifact");
+			expect(artifact?.runId).toBe("run-1");
+			expect(artifact?.outcomeId).toBe("run-1");
+			expect(artifact?.payload).toEqual(
+				expect.objectContaining({
+					id: "art-1",
+					path: ".phuong/artifacts/login.png",
+					mimeType: "image/png",
+					label: "login",
+					source: "phuong",
+				}),
+			);
+
+			const ledger = openLedger();
+			expect(listEvents(ledger, "run-1").map((event) => event.kind)).toEqual(["gate", "artifact"]);
+			expect(listEvents(ledger, "run-1").every((event) => event.runId === "run-1")).toBe(true);
+		});
+	});
+});
+
+describe("Phase 3.4 live ledger stream", () => {
+	it("notifies listeners when an event is appended", () => {
+		const { path, cleanup } = createTempDir("kanban-ledger-stream-");
+		try {
+			const seen: string[] = [];
+			const unsubscribe = onLedgerEventAppended((event) => {
+				seen.push(event.kind);
+			});
+			const ledger = openLedger(join(path, "ledger.sqlite"));
+			syncBoardCardsToLedger({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				board: createBoard([{ id: "chat-1", prompt: "Ship login", column: "backlog" }]),
+				ledger,
+			});
+			appendEvent(ledger, {
+				projectId: "demo",
+				outcomeId: "chat-1",
+				runId: "chat-1",
+				kind: "spawn",
+				payload: { agent: "pi" },
+			});
+			expect(seen).toEqual(["spawn"]);
+			unsubscribe();
+			expect(
+				runtimeStateStreamLedgerEventsMessageSchema.parse({
+					type: "ledger_events_appended",
+					workspaceId: "demo",
+					events: [
+						{
+							id: "evt-1",
+							projectId: "demo",
+							outcomeId: "chat-1",
+							runId: "chat-1",
+							kind: "spawn",
+							payload: { agent: "pi" },
+							createdAt: 1,
+						},
+					],
+				}).type,
+			).toBe("ledger_events_appended");
+		} finally {
+			cleanup();
+		}
+	});
+});
+
+describe("Phase 3.5 inspectable trail", () => {
+	it("records one Phuong turn and one pi run as inspectable events", async () => {
+		await withTemporaryHome(async () => {
+			recordPhuongTrailEvent({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				conversationId: "phuong-1",
+				kind: "user_message",
+				payload: { text: "Ship login" },
+			});
+			recordPhuongTrailEvent({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				conversationId: "phuong-1",
+				kind: "tool_call",
+				payload: { name: "create_chat", args: { prompt: "Ship login" } },
+			});
+
+			recordCreatedChatIntent({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				cardId: "run-1",
+				prompt: "Ship login",
+			});
+			const spawn = recordRunSpawn({
+				taskId: "run-1",
+				workspaceId: "demo",
+				agent: "pi",
+				prompt: "Ship login",
+			});
+			expect(spawn?.kind).toBe("spawn");
+			recordPiWorkerHook({
+				taskId: "run-1",
+				workspaceId: "demo",
+				repoPath: "/tmp/demo",
+				event: "activity",
+				metadata: {
+					source: "pi",
+					hookEventName: "tool_call",
+					toolName: "edit",
+					activityText: "src/auth.ts",
+				},
+			});
+			recordPiWorkerHook({
+				taskId: "run-1",
+				workspaceId: "demo",
+				repoPath: "/tmp/demo",
+				event: "to_review",
+				metadata: {
+					source: "pi",
+					hookEventName: "agent_end",
+					finalMessage: "Done.\nSTATUS: DONE",
+				},
+			});
+			recordGateEvent({
+				taskId: "run-1",
+				workspaceId: "demo",
+				command: "npm test",
+				exitCode: 0,
+				output: "pass",
+			});
+			recordArtifactEvent({
+				taskId: "run-1",
+				workspaceId: "demo",
+				artifact: {
+					id: "art-1",
+					path: ".phuong/artifacts/login.png",
+					mimeType: "image/png",
+				},
+			});
+
+			const ledger = openLedger();
+			const phuongKinds = listEvents(ledger, "phuong-1").map((event) => event.kind);
+			expect(phuongKinds).toEqual(["user_message", "tool_call"]);
+			expect(listEvents(ledger, "phuong-1").every((event) => event.runId === null)).toBe(true);
+
+			const runKinds = listEvents(ledger, "run-1").map((event) => event.kind);
+			expect(runKinds).toContain("spawn");
+			expect(runKinds).toContain("user_message");
+			expect(runKinds).toContain("tool_call");
+			expect(runKinds).toContain("status");
+			expect(runKinds).toContain("gate");
+			expect(runKinds).toContain("artifact");
+			expect(listEvents(ledger, "run-1").every((event) => event.runId === "run-1")).toBe(true);
+			expect(listRuns(ledger, "run-1")[0]?.reportedStatus).toBe("DONE");
 		});
 	});
 });

@@ -7,7 +7,7 @@ import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeTaskArtifact, RuntimeTaskTier } from "../core/api-contract.js";
 import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint.js";
 import { moveTaskToColumn } from "../core/task-board-mutations.js";
-import { recordCreatedChatIntent } from "../ledger/sync.js";
+import { recordArtifactEvent, recordCreatedChatIntent, recordGateEvent } from "../ledger/sync.js";
 import { getActiveTurn, getAvailableModels, getSessionStats } from "../manager/phuong-session.js";
 import type { BoardOperations } from "../manager/phuong-tools.js";
 import { listSessions, loadSession } from "../manager/session-history.js";
@@ -249,6 +249,7 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 						error: ensured.error ?? "Could not resolve chat worktree.",
 					};
 				}
+				let result: { ok: true; exitCode: number; output: string };
 				try {
 					const { stdout, stderr } = await execFileAsync("bash", ["-lc", command], {
 						cwd: ensured.path,
@@ -256,8 +257,11 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 						maxBuffer: 2 * 1024 * 1024,
 						env: process.env,
 					});
-					const output = `${stdout}${stderr ? `\n${stderr}` : ""}`.trim();
-					return { ok: true, exitCode: 0, output };
+					result = {
+						ok: true,
+						exitCode: 0,
+						output: `${stdout}${stderr ? `\n${stderr}` : ""}`.trim(),
+					};
 				} catch (error) {
 					const err = error as {
 						code?: number | string;
@@ -266,10 +270,24 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 						message?: string;
 					};
 					const exitCode = typeof err.code === "number" ? err.code : 1;
-					const output =
-						`${err.stdout ?? ""}${err.stderr ? `\n${err.stderr}` : ""}`.trim() || err.message || String(error);
-					return { ok: true, exitCode, output };
+					result = {
+						ok: true,
+						exitCode,
+						output:
+							`${err.stdout ?? ""}${err.stderr ? `\n${err.stderr}` : ""}`.trim() ||
+							err.message ||
+							String(error),
+					};
 				}
+				recordGateEvent({
+					taskId,
+					workspaceId: runtimeWorkspace.workspaceId,
+					repoPath: runtimeWorkspace.workspacePath,
+					command,
+					exitCode: result.exitCode,
+					output: result.output,
+				});
+				return result;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				return { ok: false, exitCode: null, output: "", error: message };
@@ -327,6 +345,12 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 				});
 
 				onBoardMutated?.();
+				recordArtifactEvent({
+					taskId,
+					workspaceId: runtimeWorkspace.workspaceId,
+					repoPath: runtimeWorkspace.workspacePath,
+					artifact,
+				});
 				return { ok: true, artifact };
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
