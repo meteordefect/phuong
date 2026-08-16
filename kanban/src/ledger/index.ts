@@ -20,11 +20,17 @@ export {
 	collectBoardCards,
 	mapColumnToLedgerStatuses,
 	outcomeTitleFromPrompt,
+	mapPhuongSessionEventToLedger,
 	recordCreatedChatIntent,
 	recordOutcomeAndRunFromCard,
+	recordPhuongTrailEvent,
 	recordProject,
 	recordRunSpawn,
 	syncBoardCardsToLedger,
+} from "./sync.js";
+export type {
+	PhuongLedgerIdentity,
+	PhuongSdkTrailEvent,
 } from "./sync.js";
 export type {
 	LedgerAgentRunRecord,

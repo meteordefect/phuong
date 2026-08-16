@@ -38,7 +38,7 @@ export function scrubCredentials(text: string): string {
 	return result;
 }
 
-function scrubJsonValue(value: unknown): unknown {
+export function scrubJsonValue(value: unknown): unknown {
 	if (typeof value === "string") return scrubCredentials(value);
 	if (Array.isArray(value)) return value.map(scrubJsonValue);
 	if (value !== null && typeof value === "object") {

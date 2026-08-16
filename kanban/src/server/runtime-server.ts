@@ -302,7 +302,10 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 					res.write(`data: ${JSON.stringify(event)}\n\n`);
 				};
 				try {
-					await phuongChatStream(message, convId, boardOps, send, model, resume_session_path);
+					await phuongChatStream(message, convId, boardOps, send, model, resume_session_path, {
+						projectId: activeWorkspaceId,
+						repoPath: workspacePath,
+					});
 					send({ type: "done", conversation_id: convId });
 				} catch (err) {
 					send({ type: "error", message: err instanceof Error ? err.message : String(err) });

@@ -10,6 +10,12 @@ import {
 	type AgentSessionEvent,
 } from "@mariozechner/pi-coding-agent";
 import { join, dirname } from "node:path";
+import {
+	mapPhuongSessionEventToLedger,
+	recordPhuongTrailEvent,
+	type PhuongLedgerIdentity,
+} from "../ledger/sync.js";
+import type { LedgerEventKind } from "../ledger/types.js";
 import { isMemoryConfigured, getMemoryDir } from "../memory/memory-service.js";
 import { assemblePhuongSystemPrompt, assemblePhuongContext } from "./phuong-context.js";
 import { createPhuongTools, type BoardOperations } from "./phuong-tools.js";
@@ -26,6 +32,8 @@ export interface PhuongStreamEvent {
 }
 
 export type PhuongStreamCallback = (event: PhuongStreamEvent) => void;
+
+export type { PhuongLedgerIdentity };
 
 const activeSessions = new Map<string, AgentSession>();
 
@@ -198,6 +206,25 @@ function mapSessionEvent(
 	}
 }
 
+function appendPhuongLedgerEvent(
+	identity: PhuongLedgerIdentity | null | undefined,
+	conversationId: string,
+	kind: LedgerEventKind,
+	payload?: Record<string, unknown>,
+): void {
+	if (!identity) {
+		return;
+	}
+	recordPhuongTrailEvent({
+		projectId: identity.projectId,
+		repoPath: identity.repoPath,
+		conversationId,
+		outcomeId: identity.outcomeId,
+		kind,
+		payload,
+	});
+}
+
 const activeTurns = new Map<string, { conversationId: string; startedAt: number }>();
 
 export async function phuongChatStream(
@@ -207,6 +234,7 @@ export async function phuongChatStream(
 	onEvent: PhuongStreamCallback,
 	model?: string,
 	resumeSessionPath?: string,
+	ledgerIdentity?: PhuongLedgerIdentity | null,
 ): Promise<void> {
 	let session = activeSessions.get(conversationId);
 	if (!session) {
@@ -224,19 +252,36 @@ export async function phuongChatStream(
 
 	activeTurns.set(conversationId, { conversationId, startedAt: Date.now() });
 
+	appendPhuongLedgerEvent(ledgerIdentity, conversationId, "user_message", { text: userMessage });
+
 	const responseRef = { text: "" };
 	const unsubscribe = session.subscribe((event) => {
 		mapSessionEvent(event, onEvent, responseRef);
+		const ledgerEvent = mapPhuongSessionEventToLedger(event);
+		if (ledgerEvent) {
+			appendPhuongLedgerEvent(ledgerIdentity, conversationId, ledgerEvent.kind, ledgerEvent.payload);
+		}
 	});
 
 	try {
 		await session.prompt(userMessage);
 	} catch (err) {
 		console.error("[phuong] session.prompt error:", err);
-		onEvent({ type: "error", message: err instanceof Error ? err.message : String(err) });
+		const message = err instanceof Error ? err.message : String(err);
+		onEvent({ type: "error", message });
+		appendPhuongLedgerEvent(ledgerIdentity, conversationId, "system", {
+			type: "prompt_error",
+			message,
+		});
 	} finally {
 		unsubscribe();
 		activeTurns.delete(conversationId);
+	}
+
+	if (responseRef.text.trim()) {
+		appendPhuongLedgerEvent(ledgerIdentity, conversationId, "assistant_message", {
+			text: responseRef.text,
+		});
 	}
 
 	const sessionFilePath = session.sessionFile;

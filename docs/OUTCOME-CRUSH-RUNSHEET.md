@@ -109,7 +109,7 @@ Without this, Phase 5 is makeup on a terminal.
 
 File: `kanban/src/manager/phuong-session.ts`
 
-On SDK session events, `appendEvent` with `run_id` null, `kind` message/tool/system as appropriate. Scrub credentials (existing `credential-scrubber.ts`).
+- [x] On SDK session events, `appendEvent` with `run_id` null, `kind` message/tool/system as appropriate. Scrub credentials (existing `credential-scrubber.ts`).
 
 ### 3.2 Pi worker events
 

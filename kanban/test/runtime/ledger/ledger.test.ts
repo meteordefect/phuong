@@ -13,8 +13,10 @@ import {
 	listOutcomes,
 	listProjects,
 	listRuns,
+	mapPhuongSessionEventToLedger,
 	openLedger,
 	recordCreatedChatIntent,
+	recordPhuongTrailEvent,
 	recordRunSpawn,
 	resetLedgerImportState,
 	syncBoardCardsToLedger,
@@ -294,6 +296,105 @@ describe("Phase 2 ledger dual-write from board mutations", () => {
 			} finally {
 				cleanup();
 			}
+		});
+	});
+});
+
+describe("Phase 3.1 Phuong trail events", () => {
+	it("maps SDK session events to message/tool/system kinds", () => {
+		expect(mapPhuongSessionEventToLedger({ type: "turn_start" })).toBeNull();
+		expect(mapPhuongSessionEventToLedger({ type: "text_delta" })).toBeNull();
+		expect(
+			mapPhuongSessionEventToLedger({
+				type: "tool_execution_start",
+				toolCallId: "call-1",
+				toolName: "create_chat",
+				args: { prompt: "Ship login" },
+			}),
+		).toEqual({
+			kind: "tool_call",
+			payload: {
+				toolCallId: "call-1",
+				name: "create_chat",
+				args: { prompt: "Ship login" },
+			},
+		});
+		expect(
+			mapPhuongSessionEventToLedger({
+				type: "tool_execution_end",
+				toolCallId: "call-1",
+				toolName: "create_chat",
+				result: "created chat-1",
+				isError: false,
+			}),
+		).toEqual({
+			kind: "tool_result",
+			payload: {
+				toolCallId: "call-1",
+				name: "create_chat",
+				result: "created chat-1",
+				isError: false,
+			},
+		});
+		expect(
+			mapPhuongSessionEventToLedger({
+				type: "compaction_start",
+				reason: "overflow",
+			}),
+		).toEqual({
+			kind: "system",
+			payload: { type: "compaction_start", reason: "overflow" },
+		});
+		expect(
+			mapPhuongSessionEventToLedger({
+				type: "message_update",
+				assistantMessageEvent: {
+					type: "error",
+					error: { errorMessage: "sk-ant-abcdefghijklmnopqrstuvwxyz0123" },
+					reason: "rate_limit",
+				},
+			})?.kind,
+		).toBe("system");
+	});
+
+	it("appends Phuong events with run_id null and scrubs credentials", async () => {
+		await withTemporaryHome(async () => {
+			const userEvent = recordPhuongTrailEvent({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				conversationId: "conv-1",
+				kind: "user_message",
+				payload: { text: "Use sk-ant-abcdefghijklmnopqrstuvwxyz0123" },
+			});
+			expect(userEvent?.runId).toBeNull();
+			expect(userEvent?.kind).toBe("user_message");
+			expect(userEvent?.payload.text).toBe("Use [REDACTED]");
+			expect(userEvent?.payload.source).toBe("phuong");
+
+			const toolEvent = recordPhuongTrailEvent({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				conversationId: "conv-1",
+				kind: "tool_call",
+				payload: {
+					name: "create_chat",
+					args: { token: "ghp_abcdefghijklmnopqrstuvwxyz0123456789ABCD" },
+				},
+			});
+			expect(toolEvent?.runId).toBeNull();
+			expect(toolEvent?.payload.args).toEqual({ token: "[REDACTED]" });
+
+			const ledger = openLedger();
+			expect(listRuns(ledger, "conv-1")).toEqual([]);
+			expect(listEvents(ledger, "conv-1").map((item) => item.kind)).toEqual(["user_message", "tool_call"]);
+			expect(listEvents(ledger, "conv-1").every((item) => item.runId === null)).toBe(true);
+			expect(listOutcomes(ledger, "demo")).toEqual([
+				expect.objectContaining({
+					id: "conv-1",
+					title: "Use [REDACTED]",
+					status: "in_progress",
+				}),
+			]);
 		});
 	});
 });

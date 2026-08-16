@@ -1,4 +1,5 @@
 import type { RuntimeBoardCard, RuntimeBoardColumnId, RuntimeBoardData } from "../core/api-contract.js";
+import { scrubJsonValue } from "../manager/credential-scrubber.js";
 import { captureNodeException } from "../telemetry/sentry-node.js";
 import { type LedgerDatabase, openLedger } from "./db.js";
 import {
@@ -11,7 +12,7 @@ import {
 	updateRunStatus,
 	upsertProject,
 } from "./queries.js";
-import type { LedgerEventRecord, LedgerOutcomeStatus, LedgerRunStatus, LedgerTier } from "./types.js";
+import type { LedgerEventKind, LedgerEventRecord, LedgerOutcomeStatus, LedgerRunStatus, LedgerTier } from "./types.js";
 
 export interface LedgerCardIntent {
 	cardId: string;
@@ -253,6 +254,170 @@ export function recordRunSpawn(input: {
 		});
 	} catch (error) {
 		warnLedgerFailure("spawn", error);
+		return null;
+	}
+}
+
+export interface PhuongLedgerIdentity {
+	projectId: string;
+	repoPath: string;
+	outcomeId?: string | null;
+}
+
+export interface PhuongSdkTrailEvent {
+	type: string;
+	toolCallId?: string;
+	toolName?: string;
+	args?: unknown;
+	result?: unknown;
+	isError?: boolean;
+	reason?: string;
+	attempt?: number;
+	maxAttempts?: number;
+	success?: boolean;
+	finalError?: string;
+	assistantMessageEvent?: {
+		type: string;
+		error?: { errorMessage?: string };
+		reason?: string;
+	};
+}
+
+function formatPhuongToolResult(result: unknown): string {
+	if (!result) {
+		return "";
+	}
+	if (typeof result === "string") {
+		return result;
+	}
+	if (typeof result === "object" && result !== null && "content" in result) {
+		const typed = result as { content: { text?: string }[] };
+		return typed.content.map((part) => part.text || "").join("\n");
+	}
+	return JSON.stringify(result, null, 2);
+}
+
+function scrubEventPayload(payload: Record<string, unknown>): Record<string, unknown> {
+	const scrubbed = scrubJsonValue(payload);
+	if (scrubbed && typeof scrubbed === "object" && !Array.isArray(scrubbed)) {
+		return scrubbed as Record<string, unknown>;
+	}
+	return {};
+}
+
+export function mapPhuongSessionEventToLedger(
+	event: PhuongSdkTrailEvent,
+): { kind: LedgerEventKind; payload: Record<string, unknown> } | null {
+	switch (event.type) {
+		case "tool_execution_start":
+			return {
+				kind: "tool_call",
+				payload: {
+					toolCallId: event.toolCallId,
+					name: event.toolName,
+					args: event.args,
+				},
+			};
+		case "tool_execution_end":
+			return {
+				kind: "tool_result",
+				payload: {
+					toolCallId: event.toolCallId,
+					name: event.toolName,
+					result: formatPhuongToolResult(event.result),
+					isError: event.isError,
+				},
+			};
+		case "compaction_start":
+			return {
+				kind: "system",
+				payload: { type: event.type, reason: event.reason },
+			};
+		case "compaction_end":
+			return {
+				kind: "system",
+				payload: { type: event.type, compacted: Boolean(event.result) },
+			};
+		case "auto_retry_start":
+			return {
+				kind: "system",
+				payload: {
+					type: event.type,
+					attempt: event.attempt,
+					maxAttempts: event.maxAttempts,
+				},
+			};
+		case "auto_retry_end":
+			return {
+				kind: "system",
+				payload: {
+					type: event.type,
+					success: event.success,
+					error: event.finalError,
+				},
+			};
+		case "message_update":
+			if (event.assistantMessageEvent?.type === "error") {
+				return {
+					kind: "system",
+					payload: {
+						type: "llm_error",
+						message:
+							event.assistantMessageEvent.error?.errorMessage ||
+							event.assistantMessageEvent.reason ||
+							"LLM error",
+					},
+				};
+			}
+			return null;
+		default:
+			return null;
+	}
+}
+
+export function recordPhuongTrailEvent(input: {
+	projectId: string;
+	repoPath: string;
+	conversationId: string;
+	outcomeId?: string | null;
+	kind: LedgerEventKind;
+	payload?: Record<string, unknown>;
+	createdAt?: number;
+	ledger?: LedgerDatabase;
+}): LedgerEventRecord | null {
+	try {
+		const ledger = input.ledger ?? openLedger();
+		recordProject(
+			{
+				projectId: input.projectId,
+				repoPath: input.repoPath,
+			},
+			ledger,
+		);
+		const outcomeId = input.outcomeId || input.conversationId;
+		const payload = scrubEventPayload({
+			...(input.payload ?? {}),
+			source: "phuong",
+			conversationId: input.conversationId,
+		});
+		const payloadText = typeof payload.text === "string" ? payload.text : "";
+		insertOutcomeIfMissing(ledger, {
+			id: outcomeId,
+			projectId: input.projectId,
+			title: outcomeTitleFromPrompt(payloadText || "Phuong"),
+			description: payloadText,
+			status: "in_progress",
+		});
+		return appendEvent(ledger, {
+			projectId: input.projectId,
+			outcomeId,
+			runId: null,
+			kind: input.kind,
+			payload,
+			createdAt: input.createdAt,
+		});
+	} catch (error) {
+		warnLedgerFailure("phuong event", error);
 		return null;
 	}
 }
