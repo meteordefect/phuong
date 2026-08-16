@@ -131,14 +131,17 @@ Inspiration from public screenshots is fine. Shipping their UI is not.
 
 ## Where it lands in our UI
 
-| Surface | Visual job |
-|---|---|
-| Project tabs | Charm-quiet nav |
-| Outcome header | Title + status pills, no board card |
-| Center | Trail stream (the Crush feeling) |
-| Nested runs | Small list or chips, not a second sidebar of “chats” |
-| Phuong home | Same card language so talk vs watch is one system |
-| Optional PTY | Same tokens, visually secondary |
+| Surface | Visual job | Order |
+|---|---|---|
+| Project tabs | Charm-quiet nav | 1 |
+| Phuong home | Same card language so talk vs watch is one system | 2 on talk home |
+| Outcome header | Title + status pills, no board card | 2 on watch |
+| Center | Trail stream (the Crush feeling) | 3 |
+| Nested runs | Small list or chips, not a second sidebar of “chats” | 4 |
+| Overflow | Settings / git / debug | 5 |
+| Optional PTY | Same tokens, visually secondary | Last |
+
+Exact panel stack is tuned in Phase 5 (`docs/OUTCOME-CRUSH-RUNSHEET.md` §5.0b). Do not keep left-tree + PTY-hero.
 
 Phuong chat panel (`kanban/web-ui/src/components/phuong/phuong-chat-panel.tsx`) should use the same cards for her messages once her events are in the ledger. Until then, restyle the existing panel to the new tokens so it does not look like leftover Kanban.
 

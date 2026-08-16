@@ -14,9 +14,12 @@ import {
 	listProjects,
 	listRuns,
 	mapPhuongSessionEventToLedger,
+	mapPiHookActivityToLedger,
+	mapPiSessionEntriesToLedger,
 	openLedger,
 	recordCreatedChatIntent,
 	recordPhuongTrailEvent,
+	recordPiWorkerHook,
 	recordRunSpawn,
 	resetLedgerImportState,
 	syncBoardCardsToLedger,
@@ -386,7 +389,9 @@ describe("Phase 3.1 Phuong trail events", () => {
 
 			const ledger = openLedger();
 			expect(listRuns(ledger, "conv-1")).toEqual([]);
-			expect(listEvents(ledger, "conv-1").map((item) => item.kind)).toEqual(["user_message", "tool_call"]);
+			expect(listEvents(ledger, "conv-1").map((item) => item.kind).sort()).toEqual(
+				["tool_call", "user_message"],
+			);
 			expect(listEvents(ledger, "conv-1").every((item) => item.runId === null)).toBe(true);
 			expect(listOutcomes(ledger, "demo")).toEqual([
 				expect.objectContaining({
@@ -395,6 +400,136 @@ describe("Phase 3.1 Phuong trail events", () => {
 					status: "in_progress",
 				}),
 			]);
+		});
+	});
+});
+
+describe("Phase 3.2 Pi worker trail events", () => {
+	it("maps hook metadata to tool and status events", () => {
+		expect(
+			mapPiHookActivityToLedger("activity", {
+				source: "pi",
+				hookEventName: "tool_call",
+				toolName: "bash",
+				activityText: '{"command":"npm test"}',
+			}),
+		).toEqual([
+			{
+				kind: "tool_call",
+				payload: {
+					name: "bash",
+					args: '{"command":"npm test"}',
+					source: "pi",
+				},
+			},
+		]);
+		expect(
+			mapPiHookActivityToLedger("to_review", {
+				source: "pi",
+				hookEventName: "agent_end",
+				finalMessage: "Implementation complete.\nSTATUS: DONE\nREASON: tests pass",
+			}),
+		).toEqual([
+			{
+				kind: "status",
+				payload: {
+					status: "DONE",
+					reason: "tests pass",
+					source: "pi",
+				},
+			},
+		]);
+	});
+
+	it("maps session JSONL entries to messages and tools", () => {
+		const mapped = mapPiSessionEntriesToLedger([
+			{
+				type: "message",
+				timestamp: "2026-01-01T00:00:00.000Z",
+				message: { role: "user", content: "Ship login" },
+			},
+			{
+				type: "message",
+				timestamp: "2026-01-01T00:00:01.000Z",
+				message: {
+					role: "assistant",
+					content: [
+						{ type: "text", text: "Editing auth.\nSTATUS: DONE" },
+						{ type: "toolCall", id: "call-1", name: "edit", arguments: { path: "src/auth.ts" } },
+					],
+				},
+			},
+			{
+				type: "message",
+				timestamp: "2026-01-01T00:00:02.000Z",
+				message: {
+					role: "toolResult",
+					toolCallId: "call-1",
+					toolName: "edit",
+					content: [{ type: "text", text: "ok" }],
+					isError: false,
+				},
+			},
+		]);
+		expect(mapped.map((item) => item.kind)).toEqual([
+			"user_message",
+			"assistant_message",
+			"tool_call",
+			"status",
+			"tool_result",
+		]);
+		expect(mapped[3]).toEqual(
+			expect.objectContaining({
+				kind: "status",
+				payload: expect.objectContaining({ status: "DONE" }),
+			}),
+		);
+	});
+
+	it("appends Pi events with run_id, scrubs credentials, and stores STATUS", async () => {
+		await withTemporaryHome(async () => {
+			recordCreatedChatIntent({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				cardId: "run-1",
+				prompt: "Ship login with ghp_abcdefghijklmnopqrstuvwxyz0123456789ABCD",
+			});
+			const toolEvents = recordPiWorkerHook({
+				taskId: "run-1",
+				workspaceId: "demo",
+				repoPath: "/tmp/demo",
+				event: "activity",
+				metadata: {
+					source: "pi",
+					hookEventName: "tool_call",
+					toolName: "bash",
+					activityText: "sk-ant-abcdefghijklmnopqrstuvwxyz0123",
+				},
+			});
+			expect(toolEvents.some((event) => event.kind === "user_message")).toBe(true);
+			expect(toolEvents.some((event) => event.kind === "tool_call")).toBe(true);
+			expect(toolEvents.every((event) => event.runId === "run-1")).toBe(true);
+			expect(toolEvents.find((event) => event.kind === "tool_call")?.payload.args).toBe("[REDACTED]");
+
+			recordPiWorkerHook({
+				taskId: "run-1",
+				workspaceId: "demo",
+				repoPath: "/tmp/demo",
+				event: "to_review",
+				metadata: {
+					source: "pi",
+					hookEventName: "agent_end",
+					finalMessage: "Done.\nSTATUS: DONE_WITH_CONCERNS\nREASON: no e2e",
+				},
+			});
+
+			const ledger = openLedger();
+			const run = listRuns(ledger, "run-1")[0];
+			expect(run?.reportedStatus).toBe("DONE_WITH_CONCERNS");
+			expect(run?.status).toBe("done");
+			expect(listOutcomes(ledger, "demo")[0]?.status).toBe("verifying");
+			expect(listEvents(ledger, "run-1").some((event) => event.kind === "status")).toBe(true);
+			expect(listEvents(ledger, "run-1").every((event) => event.runId === "run-1")).toBe(true);
 		});
 	});
 });

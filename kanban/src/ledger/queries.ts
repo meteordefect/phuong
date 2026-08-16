@@ -299,6 +299,7 @@ export function updateRunStatus(
 		endedAt?: number | null;
 		worktreePath?: string | null;
 		model?: string | null;
+		reportedStatus?: LedgerReportedStatus | null;
 	},
 ): LedgerAgentRunRecord | null {
 	const existing = getRun(ledger, runId);
@@ -312,7 +313,8 @@ export function updateRunStatus(
 			     started_at = COALESCE(?, started_at),
 			     ended_at = COALESCE(?, ended_at),
 			     worktree_path = COALESCE(?, worktree_path),
-			     model = COALESCE(?, model)
+			     model = COALESCE(?, model),
+			     reported_status = COALESCE(?, reported_status)
 			 WHERE id = ?`,
 		)
 		.run(
@@ -321,6 +323,7 @@ export function updateRunStatus(
 			patch.endedAt ?? null,
 			patch.worktreePath ?? null,
 			patch.model ?? null,
+			patch.reportedStatus ?? null,
 			runId,
 		);
 	return getRun(ledger, runId);

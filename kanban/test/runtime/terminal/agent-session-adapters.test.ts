@@ -575,6 +575,13 @@ describe("prepareAgentLaunch hook strategies", () => {
 			expect(launch.env.ANTHROPIC_API_KEY).toBe("anthropic-key");
 			expect(launch.env.KANBAN_HOOK_TASK_ID).toBe("task-pi");
 			expect(launch.env.KANBAN_HOOK_WORKSPACE_ID).toBe("workspace-1");
+			const extensionPath = join(homedir(), ".cline", "kanban", "hooks", "pi", "kanban-hooks.ts");
+			const extension = readFileSync(extensionPath, "utf8");
+			expect(extension).toContain("tool_execution_start");
+			expect(extension).toContain("tool_result");
+			expect(extension).toContain("--final-message");
+			expect(extension).not.toContain("--mode json");
+			expect(extension).not.toContain("--mode rpc");
 		} finally {
 			if (originalKimiApiKey === undefined) {
 				delete process.env.KIMI_API_KEY;

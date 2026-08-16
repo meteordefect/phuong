@@ -6,6 +6,16 @@ Crush is never installed as a dependency of this work.
 
 Related historical runsheet: `docs/BUILD-RUNSHEET.md` (Phases 1–7). This document is the next execution track.
 
+## Locked: keep the runtime, replace the Cline UI
+
+We already own a fork of `cline/kanban`. The product UI is still Cline-shaped (board nouns in `App.tsx`, Cline chat/settings/onboarding, leftover telemetry). The execution engine is ours to keep.
+
+Do **not** start a second Vite app or rewrite worktrees / PTY / tRPC / session-manager / Clerk. Phase 5 is the cutover: same `kanban/web-ui`, same auth, same runtime API — our shell and trail on top of the ledger.
+
+Do **not** start Phase 5 before the Phase 3 checkpoint (inspectable `events` rows from Phuong and a pi run). Prefer after Phase 4 so the shell binds to outcomes/runs, not `BoardData`.
+
+“Secure frontend” here means: Clerk stays the only browser auth, Bearer on every tRPC call, watch-only default, scrubbed trail payloads, no Cline PostHog/Featurebase, no new unauthenticated surface.
+
 ---
 
 ## Phase 0: Plans locked
@@ -123,6 +133,12 @@ File: `kanban/src/terminal/agent-session-adapters.ts` plus a small ingest helper
 
 Map `STATUS:` (`task-status-protocol.ts`) to run `reported_status` and a `status` event.
 
+- [x] Path 1: keep the PTY. Enrich the existing pi ExtensionAPI hook (`tool_execution_start` / `tool_result` / `agent_end`) and ingest via `hooks.ingest`. Do not switch the worker to `--mode json` / `--mode rpc`.
+- [x] Path 2: `mapPiSessionEntriesToLedger` + `ingestPiSessionJsonl` for catch-up from session JSONL.
+- [x] `STATUS:` → `agent_runs.reported_status` + `status` event (`kanban/src/ledger/pi-ingest.ts`).
+
+> **Done (3.2)** — Live ingest is the in-process pi extension (PTY stays). JSONL mapper is available for catch-up. `STATUS:` writes `reported_status` + a `status` event keyed by `run_id`.
+
 ### 3.3 Gates and artifacts
 
 `run_gate` / `attach_artifact` write `gate` / `artifact` events keyed by `run_id` / `outcome_id`.
@@ -173,9 +189,56 @@ File: `kanban/src/terminal/agent-session-adapters.ts`, hook notify path.
 
 ---
 
-## Phase 5: Trail UI + quiet chrome (the Crush steal)
+## Phase 5: Own frontend (Cline chrome off) + trail
 
-Depends on Phase 1 tokens and Phase 3 events.
+Depends on Phase 1 tokens and Phase 3 events. Prefer Phase 4 nouns first.
+
+This is the step that ditches Cline Kanban as the product UI. It is not a new app.
+
+### 5.0 Own the shell
+
+Same `kanban/web-ui`. Same Clerk gate (`main.tsx`) and session token on tRPC.
+
+Keep on the product path:
+
+- Clerk + Bearer tRPC
+- Phuong panel
+- Phase 1 tokens
+- Watch-only + Interject
+- Optional PTY disclosure
+- Ledger `list*` + live hub
+
+Remove from the product path (do not ship as primary UI):
+
+- Cline agent chat panel / composer / model picker / MCP settings
+- Cline onboarding carousel, `cline-setup-section`, `cline-icon`
+- Featurebase widget
+- PostHog / Cline leftover telemetry (disable or delete; do not send our events to a Cline project)
+- `BoardData` as the main `App.tsx` view model (board stays compatibility-only until Phase 6)
+
+Do not add a second origin that talks to the runtime without Clerk.
+
+### 5.0b Layout order (tune when we get there)
+
+Do not keep the Cline leftover stack (left project tree → fat top bar → PTY as hero → Phuong as a side thought). Reorder at implementation. Starting order, changeable in this phase:
+
+**Talk home (Phuong default)**
+
+1. Project tabs (top, small)
+2. Phuong composer + her trail
+3. Overflow for settings / git / debug
+4. No PTY unless the user opens it
+
+**Watch (outcome selected)**
+
+1. Project tabs
+2. Outcome header (title + status)
+3. Trail (main)
+4. Nested run chips (not a second chat sidebar)
+5. Phuong still reachable (compact, not a second product)
+6. PTY last — disclosure on a run
+
+Phone-width follows the same order: tabs → header/composer → trail → overflow. No columns.
 
 ### 5.1 Trail components
 
@@ -211,7 +274,7 @@ Optional disclosure on a run (“live terminal”). Default view is the trail.
 - Interject still unlocks worker input.
 - Phone-width: tabs + trail usable (scroll, no kanban columns).
 
-**Checkpoint:** This is the user-visible product cutover.
+**Checkpoint:** This is the user-visible product cutover. The browser app is Phuong’s, not Cline Kanban’s.
 
 ---
 
@@ -250,6 +313,10 @@ File: `kanban/src/core/task-board-mutations.ts` — unused by product paths (may
 - Pixel-perfect Charmtone hex from Crush source
 - Recreating Bubble Tea layouts in the browser
 - Making PTY parse the primary trail
+- A second frontend / new Vite app
+- Replacing worktrees, PTY, tRPC, session-manager, or Clerk
+- Starting the UI cutover before Phase 3 events exist
+- Custom auth rewrite in the same slice as the trail
 
 ---
 
@@ -262,7 +329,7 @@ File: `kanban/src/core/task-board-mutations.ts` — unused by product paths (may
 | Ledger dual-write | 2 | Backend |
 | Event ingest | 3 | Backend |
 | Nouns | 4 | Phuong tools + contract |
-| Cutover UI | 5 | Tabs + trail |
+| Cutover UI | 5 | Own shell (Cline chrome off) + tabs + trail |
 | Board off | 6–7 | Delete SoT, then dead UI |
 
 Do not combine Phase 5 with Phase 2. The trail must read real events.

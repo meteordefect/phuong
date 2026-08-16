@@ -137,6 +137,8 @@ Phuong remains the default home for *talking*. Opening an outcome on the Dashboa
 
 Live PTY: a disclosure / debug pane on a run, not the center of the product.
 
+Layout order is a Phase 5 implementation decision (`docs/OUTCOME-CRUSH-RUNSHEET.md` §5.0b). Do not keep the Cline leftover stack. Starting order: tabs → Phuong (talk) or outcome header + trail (watch) → run chips → overflow → PTY last. Tune when we build the shell.
+
 ## Runtime vs database
 
 The DB stores **intent and history**. One runtime actor executes.

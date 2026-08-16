@@ -1329,24 +1329,82 @@ function buildPiHookExtensionContent(
 	return `import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { spawn } from "node:child_process";
 
-function runHook(command: string) {
+function shellQuote(value: string): string {
+	return "'" + value.replaceAll("'", "'\\\\''") + "'";
+}
+
+function runHook(command: string, flags: Record<string, string> = {}) {
 	try {
-		const child = spawn("sh", ["-c", command], { stdio: "ignore", detached: true });
+		const parts = [command];
+		for (const [flag, value] of Object.entries(flags)) {
+			if (!value) continue;
+			parts.push(flag, shellQuote(value));
+		}
+		const child = spawn("sh", ["-c", parts.join(" ")], { stdio: "ignore", detached: true });
 		child.unref();
 	} catch {}
 }
 
+function extractAssistantText(messages: unknown): string {
+	if (!Array.isArray(messages)) return "";
+	const parts = [];
+	for (const message of messages) {
+		if (!message || typeof message !== "object") continue;
+		if (message.role !== "assistant") continue;
+		const content = message.content;
+		if (typeof content === "string") {
+			parts.push(content);
+			continue;
+		}
+		if (!Array.isArray(content)) continue;
+		for (const block of content) {
+			if (block && typeof block === "object" && block.type === "text" && typeof block.text === "string") {
+				parts.push(block.text);
+			}
+		}
+	}
+	return parts.join("\\n");
+}
+
+function summarizeArgs(value: unknown): string {
+	if (!value) return "";
+	if (typeof value === "string") return value.slice(0, 200);
+	try {
+		return JSON.stringify(value).slice(0, 200);
+	} catch {
+		return "";
+	}
+}
+
 export default function (pi: ExtensionAPI) {
 	pi.on("agent_start", async () => {
-		runHook(${JSON.stringify(toInProgressCommand)});
+		runHook(${JSON.stringify(toInProgressCommand)}, { "--hook-event-name": "agent_start" });
 	});
 
-	pi.on("agent_end", async () => {
-		runHook(${JSON.stringify(toReviewCommand)});
+	pi.on("agent_end", async (event) => {
+		const text = extractAssistantText(event && event.messages);
+		runHook(${JSON.stringify(toReviewCommand)}, {
+			"--hook-event-name": "agent_end",
+			"--final-message": text.slice(-1500),
+		});
 	});
 
-	pi.on("tool_result", async () => {
-		runHook(${JSON.stringify(activityCommand)});
+	pi.on("tool_execution_start", async (event) => {
+		runHook(${JSON.stringify(activityCommand)}, {
+			"--hook-event-name": "tool_call",
+			"--tool-name": event && event.toolName ? String(event.toolName) : "",
+			"--activity-text": summarizeArgs(event && event.args),
+		});
+	});
+
+	pi.on("tool_result", async (event) => {
+		const content = event && event.content;
+		const text = typeof content === "string" ? content : extractAssistantText([{ role: "assistant", content }]);
+		runHook(${JSON.stringify(activityCommand)}, {
+			"--hook-event-name": "tool_result",
+			"--tool-name": event && event.toolName ? String(event.toolName) : "",
+			"--activity-text": (text || summarizeArgs(content)).slice(0, 500),
+		});
 	});
 }
 `;

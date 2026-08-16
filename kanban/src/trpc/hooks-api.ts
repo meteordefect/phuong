@@ -5,6 +5,7 @@ import type {
 	RuntimeTaskTurnCheckpoint,
 } from "../core/api-contract.js";
 import { parseHookIngestRequest } from "../core/api-validation.js";
+import { recordPiWorkerHook } from "../ledger/pi-ingest.js";
 import { loadWorkspaceContextById } from "../state/workspace-state.js";
 import type { TerminalSessionManager } from "../terminal/session-manager.js";
 import { captureTaskTurnCheckpoint, deleteTaskTurnCheckpointRef } from "../workspace/turn-checkpoints.js";
@@ -68,10 +69,25 @@ export function createHooksApi(deps: CreateHooksApiDependencies): RuntimeTrpcCon
 					} satisfies RuntimeHookIngestResponse;
 				}
 
+				const recordPiTrail = () => {
+					const hookSource = body.metadata?.source ?? summary.agentId;
+					if (hookSource !== "pi") {
+						return;
+					}
+					recordPiWorkerHook({
+						taskId,
+						workspaceId,
+						repoPath: workspacePath,
+						event,
+						metadata: body.metadata,
+					});
+				};
+
 				if (!canTransitionTaskForHookEvent(summary, event)) {
 					if (body.metadata) {
 						manager.applyHookActivity(taskId, body.metadata);
 					}
+					recordPiTrail();
 					return {
 						ok: true,
 					} satisfies RuntimeHookIngestResponse;
@@ -113,6 +129,7 @@ export function createHooksApi(deps: CreateHooksApiDependencies): RuntimeTrpcCon
 				if (body.metadata) {
 					manager.applyHookActivity(taskId, body.metadata);
 				}
+				recordPiTrail();
 
 				void deps.broadcastRuntimeWorkspaceStateUpdated(workspaceId, workspacePath);
 				if (event === "to_review") {

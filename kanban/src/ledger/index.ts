@@ -17,6 +17,14 @@ export {
 } from "./queries.js";
 export { LEDGER_MIGRATIONS, LEDGER_SCHEMA_VERSION } from "./schema.js";
 export {
+	ingestPiSessionJsonl,
+	mapPiHookActivityToLedger,
+	mapPiSessionEntriesToLedger,
+	mapReportedStatusToRunState,
+	recordPiWorkerHook,
+} from "./pi-ingest.js";
+export type { PiHookIngestInput, PiMappedTrailEvent } from "./pi-ingest.js";
+export {
 	collectBoardCards,
 	mapColumnToLedgerStatuses,
 	outcomeTitleFromPrompt,
