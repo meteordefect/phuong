@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -38,6 +39,11 @@ import {
 import { loadWorkspaceContext, mutateWorkspaceState } from "../../../src/state/workspace-state.js";
 import { createGitTestEnv } from "../../utilities/git-env.js";
 import { createTempDir } from "../../utilities/temp-dir.js";
+
+const BOARD_IMPORT_FIXTURE_PATH = join(
+	dirname(fileURLToPath(import.meta.url)),
+	"../../fixtures/board-import/board.json",
+);
 
 function createBoard(
 	cards: Array<{ id: string; prompt: string; column: "backlog" | "in_progress" | "review" | "trash" }>,
@@ -309,6 +315,46 @@ describe("Phase 2 ledger dual-write from board mutations", () => {
 				expect(imported.projects).toBeGreaterThanOrEqual(1);
 				const ledger = openLedger();
 				expect(listOutcomes(ledger, context.workspaceId).some((outcome) => outcome.id === "legacy-1")).toBe(true);
+			} finally {
+				cleanup();
+			}
+		});
+	});
+
+	it("imports a snapshot board.json fixture workspace", async () => {
+		await withTemporaryHome(async () => {
+			const { path: sandboxRoot, cleanup } = createTempDir("kanban-ledger-fixture-");
+			try {
+				const workspacePath = join(sandboxRoot, "shop");
+				mkdirSync(workspacePath, { recursive: true });
+				initGitRepository(workspacePath);
+				const context = await loadWorkspaceContext(workspacePath);
+				const fixtureBoard = JSON.parse(readFileSync(BOARD_IMPORT_FIXTURE_PATH, "utf8")) as RuntimeBoardData;
+				await mutateWorkspaceState(workspacePath, () => ({
+					board: fixtureBoard,
+					save: true,
+					value: fixtureBoard.columns[0]?.cards[0]?.id ?? null,
+				}));
+				closeAllLedgers();
+				resetLedgerImportState();
+
+				const imported = await importWorkspacesFromBoard();
+				expect(imported.projects).toBeGreaterThanOrEqual(1);
+				const ledger = openLedger();
+				expect(listOutcomes(ledger, context.workspaceId)).toEqual([
+					expect.objectContaining({
+						id: "fixture-1",
+						title: "Snapshot imported chat",
+						status: "open",
+					}),
+				]);
+				expect(listRuns(ledger, "fixture-1")).toEqual([
+					expect.objectContaining({
+						id: "fixture-1",
+						status: "queued",
+					}),
+				]);
+				expect(fixtureBoard.columns[0]?.cards[0]?.id).toBe("fixture-1");
 			} finally {
 				cleanup();
 			}

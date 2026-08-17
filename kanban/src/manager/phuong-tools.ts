@@ -12,11 +12,6 @@ import { resolveChatModel } from "./model-tier-routing.js";
 import type { TaskAgentStatusReport } from "./task-status-protocol.js";
 
 export interface BoardOperations {
-	createCard: (
-		prompt: string,
-		baseRef?: string,
-		options?: { model?: string; tier?: RuntimeTaskTier },
-	) => Promise<{ cardId: string; model?: string; tier?: RuntimeTaskTier }>;
 	createOutcome: (
 		description: string,
 		title?: string,
@@ -37,9 +32,6 @@ export interface BoardOperations {
 	listRuns: (outcomeId: string) => Promise<
 		{ id: string; outcomeId: string; status: string; prompt: string; model?: string | null; tier?: string | null }[]
 	>;
-	listCards: () => Promise<
-		{ id: string; prompt: string; column: string; sessionState?: string; model?: string; tier?: string }[]
-	>;
 	startTask: (taskId: string) => Promise<{ ok: boolean; error?: string }>;
 	getSessionSummary: (taskId: string) => Promise<{
 		state: string;
@@ -57,12 +49,6 @@ export interface BoardOperations {
 		artifact: Omit<RuntimeTaskArtifact, "id" | "createdAt"> & { id?: string },
 	) => Promise<{ ok: boolean; artifact?: RuntimeTaskArtifact; error?: string }>;
 	listArtifacts?: (taskId: string) => Promise<RuntimeTaskArtifact[]>;
-	recordCreatedChat?: (input: {
-		cardId: string;
-		prompt: string;
-		model?: string;
-		tier?: RuntimeTaskTier;
-	}) => Promise<void>;
 }
 
 /** Required sections for the outcome description (feature/result contract). */
@@ -73,9 +59,6 @@ export const CREATE_OUTCOME_DESCRIPTION_CONTRACT = [
 	"Files / subsystems",
 	"STATUS marker reminder",
 ] as const;
-
-/** @deprecated Phase 4: contract lives on the outcome. Kept for create_chat alias tests. */
-export const CREATE_CHAT_PROMPT_CONTRACT = CREATE_OUTCOME_DESCRIPTION_CONTRACT;
 
 export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 	const createOutcomeTool: ToolDefinition = {
@@ -227,110 +210,6 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 		},
 	};
 
-	const createChatTool: ToolDefinition = {
-		name: "create_chat",
-		label: "Create Chat",
-		description:
-			"Compatibility alias: create one outcome and one Pi run for a single-release unit, then start the worker. " +
-			"Prefer create_outcome + spawn_run for multi-unit work. " +
-			"The agent begins immediately in its own git worktree. " +
-			"For substantive multi-unit work, announce the routing table in your reply before dispatching. " +
-			"Do not use this for pure conversation. " +
-			"Pass tier (T0–T3) or an explicit model so light work uses a cheaper model and complex work uses a stronger one. " +
-			"Respect the per-unit retry budget (max 3 dispatches): never silently retry an identical prompt.",
-		parameters: Type.Object({
-			prompt: Type.String({
-				description:
-					"Unit instructions for the Pi coding agent. MUST include all of: " +
-					"(1) Objective — what success looks like; " +
-					"(2) In-scope / out-of-scope — hard boundaries; " +
-					"(3) Done-criteria — preferably runnable commands or grep/file invariants the agent (and you) can check; " +
-					"(4) Files / subsystems to touch; " +
-					"(5) Reminder to end the final message with STATUS: <DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED> and optional REASON:. " +
-					"Do not send a bare task title.",
-			}),
-			tier: Type.Optional(
-				Type.Union(
-					[Type.Literal("T0"), Type.Literal("T1"), Type.Literal("T2"), Type.Literal("T3")],
-					{
-						description:
-							"Capability tier for model routing. T0=mechanical/cheap, T1=standard, T2=complex, T3=high-risk. " +
-							"Maps to env PHUONG_MODEL_T0…T3 (defaults: T0/T1 lighter Kimi, T2/T3 Kimi K3).",
-					},
-				),
-			),
-			model: Type.Optional(
-				Type.String({
-					description:
-						"Optional explicit Pi model id (e.g. kimi-coding/kimi-k3 or kimi-coding/kimi-k2.7). Overrides tier mapping when set.",
-				}),
-			),
-		}),
-		execute: async (_toolCallId, params) => {
-			const { prompt, tier, model } = params as {
-				prompt: string;
-				tier?: RuntimeTaskTier;
-				model?: string;
-			};
-			const resolvedModel = resolveChatModel({ model, tier });
-			const result = await boardOps.createCard(prompt, undefined, {
-				model: resolvedModel,
-				tier,
-			});
-			await boardOps.recordCreatedChat?.({
-				cardId: result.cardId,
-				prompt,
-				model: resolvedModel,
-				tier,
-			});
-			const startResult = await boardOps.startTask(result.cardId);
-			if (!startResult.ok) {
-				return {
-					content: [
-						{
-							type: "text" as const,
-							text: `Chat created (${result.cardId}) but failed to start: ${startResult.error}`,
-						},
-					],
-					details: {},
-				};
-			}
-			const modelNote = resolvedModel ? ` model=${resolvedModel}` : "";
-			const tierNote = tier ? ` tier=${tier}` : "";
-			return {
-				content: [
-					{
-						type: "text" as const,
-						text: `Chat created and started (${result.cardId}).${tierNote}${modelNote} The Pi agent is now working on it under this project. The user can watch it from the Dashboard (read-only) or stay in Phuong chat.`,
-					},
-				],
-				details: {},
-			};
-		},
-	};
-
-	const listChatsTool: ToolDefinition = {
-		name: "list_chats",
-		label: "List Chats",
-		description:
-			"Compatibility alias for listing agent chats (ledger runs / one-release outcome+run pairs). Prefer list_outcomes and list_runs.",
-		parameters: Type.Object({}),
-		execute: async () => {
-			const cards = await boardOps.listCards();
-			if (cards.length === 0) {
-				return { content: [{ type: "text" as const, text: "No agent chats yet." }], details: {} };
-			}
-			const lines = cards.map((c) => {
-				const status = c.sessionState ?? c.column;
-				const modelBit = c.model ? ` model=${c.model}` : "";
-				const tierBit = c.tier ? ` tier=${c.tier}` : "";
-				const preview = c.prompt ? c.prompt.slice(0, 120) + (c.prompt.length > 120 ? "..." : "") : "(no prompt)";
-				return `- [${status}] (${c.id})${tierBit}${modelBit} ${preview}`;
-			});
-			return { content: [{ type: "text" as const, text: lines.join("\n") }], details: {} };
-		},
-	};
-
 	const startChatTool: ToolDefinition = {
 		name: "start_chat",
 		label: "Start Chat",
@@ -338,7 +217,7 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 			"Resume an idle or stopped agent chat session (same unit / same chat). " +
 			"Use after NEEDS_CONTEXT once the missing info is provided, or to continue a stopped session. " +
 			"Do not create a new chat for the same unit when resume will do. " +
-			"Resuming does not count as a new dispatch against the retry budget unless you changed the unit prompt via a new create_chat.",
+			"Resuming does not count as a new dispatch against the retry budget unless you changed the unit prompt via a new spawn_run.",
 		parameters: Type.Object({
 			chat_id: Type.String({ description: "The chat/task ID to start or resume" }),
 		}),
@@ -625,8 +504,6 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 		spawnRunTool,
 		listOutcomesTool,
 		listRunsTool,
-		createChatTool,
-		listChatsTool,
 		startChatTool,
 		checkChatStatusTool,
 		runGateTool,

@@ -16,6 +16,25 @@ function HookHarness(props: Parameters<typeof useAppHotkeys>[0]): null {
 	return null;
 }
 
+function renderHotkeys(overrides: Partial<Parameters<typeof useAppHotkeys>[0]> = {}) {
+	return (
+		<HookHarness
+			selectedCard={null}
+			isDetailTerminalOpen={false}
+			isHomeTerminalOpen={false}
+			isHomeGitHistoryOpen={false}
+			handleToggleDetailTerminal={() => {}}
+			handleToggleHomeTerminal={() => {}}
+			handleToggleExpandDetailTerminal={() => {}}
+			handleToggleExpandHomeTerminal={() => {}}
+			handleOpenSettings={() => {}}
+			handleToggleGitHistory={() => {}}
+			handleCloseGitHistory={() => {}}
+			{...overrides}
+		/>
+	);
+}
+
 describe("useAppHotkeys", () => {
 	let container: HTMLDivElement;
 	let root: Root;
@@ -49,24 +68,7 @@ describe("useAppHotkeys", () => {
 		const handleOpenSettings = vi.fn();
 
 		await act(async () => {
-			root.render(
-				<HookHarness
-					selectedCard={null}
-					isDetailTerminalOpen={false}
-					isHomeTerminalOpen={false}
-					isHomeGitHistoryOpen={false}
-					canUseCreateTaskShortcut
-					handleToggleDetailTerminal={() => {}}
-					handleToggleHomeTerminal={() => {}}
-					handleToggleExpandDetailTerminal={() => {}}
-					handleToggleExpandHomeTerminal={() => {}}
-					handleOpenCreateTask={() => {}}
-					handleOpenSettings={handleOpenSettings}
-					handleToggleGitHistory={handleToggleGitHistory}
-					handleCloseGitHistory={() => {}}
-					onStartAllTasks={() => {}}
-				/>,
-			);
+			root.render(renderHotkeys({ handleToggleGitHistory, handleOpenSettings }));
 		});
 
 		const gitHistoryCall = mockUseHotkeys.mock.calls.find(([shortcut]) => shortcut === "mod+g");
@@ -93,24 +95,7 @@ describe("useAppHotkeys", () => {
 		const handleCloseGitHistory = vi.fn();
 
 		await act(async () => {
-			root.render(
-				<HookHarness
-					selectedCard={null}
-					isDetailTerminalOpen={false}
-					isHomeTerminalOpen={false}
-					isHomeGitHistoryOpen
-					canUseCreateTaskShortcut
-					handleToggleDetailTerminal={() => {}}
-					handleToggleHomeTerminal={() => {}}
-					handleToggleExpandDetailTerminal={() => {}}
-					handleToggleExpandHomeTerminal={() => {}}
-					handleOpenCreateTask={() => {}}
-					handleOpenSettings={() => {}}
-					handleToggleGitHistory={() => {}}
-					handleCloseGitHistory={handleCloseGitHistory}
-					onStartAllTasks={() => {}}
-				/>,
-			);
+			root.render(renderHotkeys({ isHomeGitHistoryOpen: true, handleCloseGitHistory }));
 		});
 
 		const escapeCall = mockUseHotkeys.mock.calls.find(([shortcut]) => shortcut === "escape");
@@ -126,77 +111,12 @@ describe("useAppHotkeys", () => {
 		expect(handleCloseGitHistory).toHaveBeenCalledTimes(1);
 	});
 
-	it("starts all tasks on Mod+B", async () => {
-		const onStartAllTasks = vi.fn();
-
+	it("does not register leftover board create or start-all shortcuts", async () => {
 		await act(async () => {
-			root.render(
-				<HookHarness
-					selectedCard={null}
-					isDetailTerminalOpen={false}
-					isHomeTerminalOpen={false}
-					isHomeGitHistoryOpen={false}
-					canUseCreateTaskShortcut
-					handleToggleDetailTerminal={() => {}}
-					handleToggleHomeTerminal={() => {}}
-					handleToggleExpandDetailTerminal={() => {}}
-					handleToggleExpandHomeTerminal={() => {}}
-					handleOpenCreateTask={() => {}}
-					handleOpenSettings={() => {}}
-					handleToggleGitHistory={() => {}}
-					handleCloseGitHistory={() => {}}
-					onStartAllTasks={onStartAllTasks}
-				/>,
-			);
+			root.render(renderHotkeys());
 		});
 
-		const startAllTasksCall = mockUseHotkeys.mock.calls.find(([shortcut]) => shortcut === "mod+b");
-		if (!startAllTasksCall || typeof startAllTasksCall[1] !== "function") {
-			throw new Error("Expected start all tasks shortcut to be registered.");
-		}
-
-		act(() => {
-			const startAllTasksHandler = startAllTasksCall[1] as () => void;
-			startAllTasksHandler();
-		});
-
-		expect(onStartAllTasks).toHaveBeenCalledTimes(1);
-	});
-
-	it("does not open create task on C when create-task shortcut is disabled", async () => {
-		const handleOpenCreateTask = vi.fn();
-
-		await act(async () => {
-			root.render(
-				<HookHarness
-					selectedCard={null}
-					isDetailTerminalOpen={false}
-					isHomeTerminalOpen={false}
-					isHomeGitHistoryOpen={false}
-					canUseCreateTaskShortcut={false}
-					handleToggleDetailTerminal={() => {}}
-					handleToggleHomeTerminal={() => {}}
-					handleToggleExpandDetailTerminal={() => {}}
-					handleToggleExpandHomeTerminal={() => {}}
-					handleOpenCreateTask={handleOpenCreateTask}
-					handleOpenSettings={() => {}}
-					handleToggleGitHistory={() => {}}
-					handleCloseGitHistory={() => {}}
-					onStartAllTasks={() => {}}
-				/>,
-			);
-		});
-
-		const createTaskCall = mockUseHotkeys.mock.calls.find(([shortcut]) => shortcut === "c");
-		if (!createTaskCall || typeof createTaskCall[1] !== "function") {
-			throw new Error("Expected create task shortcut to be registered.");
-		}
-
-		act(() => {
-			const createTaskHandler = createTaskCall[1] as () => void;
-			createTaskHandler();
-		});
-
-		expect(handleOpenCreateTask).not.toHaveBeenCalled();
+		expect(mockUseHotkeys.mock.calls.some(([shortcut]) => shortcut === "c")).toBe(false);
+		expect(mockUseHotkeys.mock.calls.some(([shortcut]) => shortcut === "mod+b")).toBe(false);
 	});
 });

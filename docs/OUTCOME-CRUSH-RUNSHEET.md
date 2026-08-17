@@ -315,10 +315,15 @@ File: `kanban/src/core/task-board-mutations.ts` — unused by product paths (may
 
 ## Phase 7: Cleanup (only after Phase 6 is stable)
 
-- Remove or archive unused board UI (`kanban-board.tsx`, `board-card.tsx`, drag-and-drop) if still shipped in the bundle.
-- Drop `create_chat` alias if Phuong prompt no longer uses it.
-- Do **not** add Crush to `agent-catalog.ts`.
-- Optional: snapshot `board.json` importer tests with a fixture workspace.
+- [x] Remove unused board UI from the product bundle: `kanban-board.tsx`, `board-card.tsx`, drag-and-drop, `TaskCreateDialog` / `useTaskEditor`, and column-only `use-board-interactions` wiring. Talk/Watch unchanged.
+- [x] Drop `create_chat` / `list_chats` aliases. Phuong prompt uses `create_outcome` + `spawn_run` + `list_outcomes` + `list_runs`.
+- [x] Do **not** add Crush to `agent-catalog.ts`.
+- [x] Snapshot `board.json` importer test with `kanban/test/fixtures/board-import/board.json`.
+- Leftover CLI / shutdown trash moves may still touch `board.json`. `task-board-mutations.ts` stays for those leftover paths.
+
+**Checkpoint:** Board UI is gone from the product bundle. Ledger is the listing/status SoT. Kanban runtime (worktrees, PTY, tRPC, session-manager, Clerk) unchanged.
+
+> **Done (7)** — Unused board canvas / create-task / column-interaction files deleted from `kanban/web-ui`. Phuong tools no longer expose `create_chat` / `list_chats`. Importer fixture covers leftover `board.json`. No Crush in `agent-catalog.ts`.
 
 ---
 

@@ -170,7 +170,7 @@ describe("createBoardOperations Phase 6 ledger start", () => {
 		});
 	});
 
-	it("lists chats from ledger runs, not board columns", async () => {
+	it("lists runs from the ledger, not board columns", async () => {
 		await withTemporaryHome(async () => {
 			recordCreatedOutcome({
 				projectId: "workspace-1",
@@ -196,14 +196,13 @@ describe("createBoardOperations Phase 6 ledger start", () => {
 
 			trpcMocks.createTRPCProxyClient.mockReturnValue(createRuntimeClient());
 			const boardOps = createBoardOperations("/tmp/repo");
-			const cards = await boardOps.listCards();
+			const runs = await boardOps.listRuns("out-1");
 
-			expect(cards.map((card) => card.id)).toEqual(["run-a", "run-b"]);
-			expect(cards[0]).toMatchObject({
+			expect(runs.map((run) => run.id)).toEqual(["run-a", "run-b"]);
+			expect(runs[0]).toMatchObject({
 				id: "run-a",
 				prompt: "U1 auth",
-				column: "queued",
-				sessionState: "queued",
+				status: "queued",
 			});
 			expect(workspaceStateMocks.mutateWorkspaceState).not.toHaveBeenCalled();
 		});

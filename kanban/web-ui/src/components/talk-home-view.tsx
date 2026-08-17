@@ -1,17 +1,28 @@
 import { PhuongChatPanel } from "@/components/phuong/phuong-chat-panel";
+import { SubagentMosaic } from "@/components/subagent-mosaic";
 import { TrailStatusPill } from "@/components/trail/trail-status-pill";
 import { cn } from "@/components/ui/cn";
-import type { RuntimeOutcome } from "@/runtime/types";
+import type { RuntimeAgentRun, RuntimeLedgerEvent, RuntimeOutcome } from "@/runtime/types";
 
 export function TalkHomeView({
 	workspaceId,
 	outcomes,
+	projectRuns,
+	projectEvents,
 	onSelectOutcome,
+	onOpenRun,
 }: {
 	workspaceId: string;
 	outcomes: RuntimeOutcome[];
+	projectRuns: RuntimeAgentRun[];
+	projectEvents: RuntimeLedgerEvent[];
 	onSelectOutcome: (outcomeId: string) => void;
+	onOpenRun: (runId: string, outcomeId: string) => void;
 }): React.ReactElement {
+	const outcomesById = Object.fromEntries(outcomes.map((outcome) => [outcome.id, outcome]));
+	const activeRuns = projectRuns.filter((run) => run.status === "running" || run.status === "queued");
+	const mosaicRuns = activeRuns.length > 0 ? activeRuns : projectRuns;
+
 	return (
 		<div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-surface-0">
 			{outcomes.length > 0 ? (
@@ -32,9 +43,25 @@ export function TalkHomeView({
 					))}
 				</div>
 			) : null}
-			<div className="flex min-h-0 flex-1 flex-col">
-				<PhuongChatPanel workspaceId={workspaceId} variant="conduit" />
-			</div>
+			{mosaicRuns.length > 0 ? (
+				<>
+					<div className="min-h-0 flex-1">
+						<SubagentMosaic
+							runs={mosaicRuns}
+							events={projectEvents}
+							outcomesById={outcomesById}
+							onOpenRun={onOpenRun}
+						/>
+					</div>
+					<div className="h-[168px] shrink-0 border-t border-border">
+						<PhuongChatPanel workspaceId={workspaceId} variant="compact" />
+					</div>
+				</>
+			) : (
+				<div className="flex min-h-0 flex-1 flex-col">
+					<PhuongChatPanel workspaceId={workspaceId} variant="conduit" />
+				</div>
+			)}
 		</div>
 	);
 }

@@ -100,6 +100,7 @@ describe("OutcomeWatchView", () => {
 					isLoadingTrail={false}
 					selectedRunId="run-1"
 					onSelectRun={() => {}}
+					onReturnToFloor={() => {}}
 					taskSessions={{}}
 					onSessionSummary={() => {}}
 					onReturnToPhuong={() => {}}
@@ -108,7 +109,7 @@ describe("OutcomeWatchView", () => {
 		});
 
 		expect(container.textContent).toContain("Ship login");
-		expect(container.textContent).toContain("Watching — Phuong is handling this");
+		expect(container.textContent).toContain("Watching this subagent");
 		expect(container.textContent).toContain("pi");
 		expect(container.textContent).toContain("edit");
 		expect(container.textContent).toContain("DONE");
@@ -122,14 +123,31 @@ describe("OutcomeWatchView", () => {
 		await act(async () => {
 			interject?.click();
 		});
-		expect(container.textContent).toContain("Interject unlocked");
-
-		const terminalToggle = Array.from(container.querySelectorAll("button")).find((button) =>
-			button.textContent?.includes("Live terminal"),
-		);
-		await act(async () => {
-			terminalToggle?.click();
-		});
+		expect(container.textContent).toContain("Interject unlocked — subagent input is available");
 		expect(container.textContent).toContain("pty-writable");
+	});
+
+	it("shows the floor mosaic until a subagent is opened", async () => {
+		await act(async () => {
+			root.render(
+				<OutcomeWatchView
+					workspaceId="proj"
+					outcome={outcome}
+					runs={[run]}
+					events={events}
+					isLoadingTrail={false}
+					selectedRunId={null}
+					onSelectRun={() => {}}
+					onReturnToFloor={() => {}}
+					taskSessions={{}}
+					onSessionSummary={() => {}}
+					onReturnToPhuong={() => {}}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("Floor — Phuong is running these subagents");
+		expect(container.textContent).toContain("1 subagent");
+		expect(container.textContent).not.toContain("Live terminal");
 	});
 });

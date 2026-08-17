@@ -3,27 +3,11 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { useProjectUiState } from "@/hooks/use-project-ui-state";
-import type { BoardData } from "@/types";
 
 type ProjectUiStateResult = ReturnType<typeof useProjectUiState>;
 
-function createBoard(): BoardData {
-	return {
-		columns: [
-			{ id: "backlog", title: "Backlog", cards: [] },
-			{ id: "in_progress", title: "In Progress", cards: [] },
-			{ id: "review", title: "Review", cards: [] },
-			{ id: "trash", title: "Trash", cards: [] },
-		],
-		dependencies: [],
-	};
-}
-
 function HookHarness({ onResult }: { onResult: (result: ReturnType<typeof useProjectUiState>) => void }): null {
 	const result = useProjectUiState({
-		board: createBoard(),
-		canPersistWorkspaceState: true,
-		currentProjectId: "project-b",
 		projects: [
 			{
 				id: "project-a",

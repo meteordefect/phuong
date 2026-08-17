@@ -1,16 +1,8 @@
-import type { ComponentProps } from "react";
 import { useMemo } from "react";
-import type { ProjectNavigationPanel } from "@/components/project-navigation-panel";
-import { countTasksByColumn } from "@/hooks/app-utils";
-import type { BoardData } from "@/types";
-
-type ProjectSummaries = ComponentProps<typeof ProjectNavigationPanel>["projects"];
+import type { RuntimeProjectSummary } from "@/runtime/types";
 
 interface UseProjectUiStateInput {
-	board: BoardData;
-	canPersistWorkspaceState: boolean;
-	currentProjectId: string | null;
-	projects: ProjectSummaries;
+	projects: RuntimeProjectSummary[];
 	navigationCurrentProjectId: string | null;
 	selectedTaskId: string | null;
 	streamError: string | null;
@@ -22,7 +14,7 @@ interface UseProjectUiStateInput {
 }
 
 interface UseProjectUiStateResult {
-	displayedProjects: ProjectSummaries;
+	displayedProjects: RuntimeProjectSummary[];
 	navigationProjectPath: string | null;
 	shouldShowProjectLoadingState: boolean;
 	isProjectListLoading: boolean;
@@ -30,9 +22,6 @@ interface UseProjectUiStateResult {
 }
 
 export function useProjectUiState({
-	board,
-	canPersistWorkspaceState,
-	currentProjectId,
 	projects,
 	navigationCurrentProjectId,
 	selectedTaskId,
@@ -43,20 +32,7 @@ export function useProjectUiState({
 	isWorkspaceMetadataPending,
 	hasReceivedSnapshot,
 }: UseProjectUiStateInput): UseProjectUiStateResult {
-	const displayedProjects = useMemo(() => {
-		if (!canPersistWorkspaceState || !currentProjectId) {
-			return projects;
-		}
-		const localCounts = countTasksByColumn(board);
-		return projects.map((project) =>
-			project.id === currentProjectId
-				? {
-						...project,
-						taskCounts: localCounts,
-					}
-				: project,
-		);
-	}, [board, canPersistWorkspaceState, currentProjectId, projects]);
+	const displayedProjects = projects;
 
 	const navigationProjectPath = useMemo(() => {
 		if (!navigationCurrentProjectId) {

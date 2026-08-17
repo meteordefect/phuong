@@ -15,7 +15,6 @@ import {
 	openLedger,
 	outcomeTitleFromPrompt,
 	recordArtifactEvent,
-	recordCreatedChatIntent,
 	recordCreatedOutcome,
 	recordGateEvent,
 	recordSpawnedRun,
@@ -81,27 +80,6 @@ function isPathInsideWorktree(worktreePath: string, candidatePath: string): bool
 
 export function createBoardOperations(workspacePath: string, _onBoardMutated?: () => void): BoardOperations {
 	const ops: BoardOperations = {
-		createCard: async (_prompt: string, _baseRef?: string, options?: { model?: string; tier?: RuntimeTaskTier }) => {
-			const cardId = randomUUID().slice(0, 8);
-			return { cardId, model: options?.model, tier: options?.tier };
-		},
-
-		recordCreatedChat: async (input) => {
-			try {
-				const workspace = await loadWorkspaceContext(workspacePath);
-				recordCreatedChatIntent({
-					projectId: workspace.workspaceId,
-					repoPath: workspace.repoPath,
-					cardId: input.cardId,
-					prompt: input.prompt,
-					model: input.model,
-					tier: input.tier,
-				});
-			} catch {
-				// Ledger write is best-effort for the create_chat alias.
-			}
-		},
-
 		createOutcome: async (description: string, title?: string) => {
 			const workspace = await loadWorkspaceContext(workspacePath);
 			const outcomeId = randomUUID().slice(0, 8);
@@ -191,36 +169,6 @@ export function createBoardOperations(workspacePath: string, _onBoardMutated?: (
 					model: run.model,
 					tier: run.tier,
 				}));
-			} catch {
-				return [];
-			}
-		},
-
-		listCards: async () => {
-			try {
-				const workspace = await loadWorkspaceContext(workspacePath);
-				const ledger = openLedger();
-				const cards: {
-					id: string;
-					prompt: string;
-					column: string;
-					sessionState?: string;
-					model?: string;
-					tier?: string;
-				}[] = [];
-				for (const outcome of listOutcomes(ledger, workspace.workspaceId)) {
-					for (const run of listRuns(ledger, outcome.id)) {
-						cards.push({
-							id: run.id,
-							prompt: run.prompt,
-							column: run.status,
-							sessionState: run.status,
-							model: run.model ?? undefined,
-							tier: run.tier ?? undefined,
-						});
-					}
-				}
-				return cards;
 			} catch {
 				return [];
 			}
