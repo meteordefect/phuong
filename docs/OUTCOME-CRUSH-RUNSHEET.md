@@ -292,16 +292,24 @@ Phone-width follows the same order: tabs → header/composer → trail → overf
 
 Workspace UI and Phuong tools no longer require `board.json` for listing or status.
 
+- [x] Product paths: `list_outcomes` / `list_runs` / `listEvents`, Talk/Watch, `spawn_run` start, `list_chats` alias.
+- [x] `startTask` / `run_gate` / `attach_artifact` / `list_artifacts` resolve the run from the ledger (`run_id`), not a board card.
+
 ### 6.2 Stop column mutations
 
 File: `kanban/src/core/task-board-mutations.ts` — unused by product paths (may remain for tests until deleted).
 
+- [x] `spawn_run` / `create_chat` / `startTask` do not write or move board columns.
+- [x] Hook `to_in_progress` / `to_review` already write ledger status — App no longer syncs session state into columns.
+
 ### 6.3 Verify
 
-- Fresh project: no dependence on board columns for a full outcome → runs → trail loop.
-- Restart process: outcomes, runs, events reload from SQLite.
+- [x] Fresh project: no dependence on board columns for a full outcome → runs → trail loop.
+- [x] Restart process: outcomes, runs, events reload from SQLite.
 
 **Checkpoint:** Kanban board is leftover code, not the source of truth.
+
+> **Done (6.1–6.3)** — Product listing/status and `spawn_run` start read the ledger. `startTask` keys worktree / PTY by `run_id` with `baseRef=HEAD`. No product-path column mutations. `task-board-mutations.ts` remains for leftover board tests until Phase 7. Restart reloads outcomes / runs / events from SQLite.
 
 ---
 

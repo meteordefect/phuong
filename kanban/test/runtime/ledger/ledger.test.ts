@@ -854,6 +854,52 @@ describe("Phase 4 outcome is the unit", () => {
 		});
 	});
 
+	it("reloads outcomes, runs, and events from SQLite without board columns", async () => {
+		await withTemporaryHome(async () => {
+			recordCreatedOutcome({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				outcomeId: "out-1",
+				title: "Ship login",
+				description: "Auth contract",
+			});
+			recordSpawnedRun({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				outcomeId: "out-1",
+				runId: "run-a",
+				prompt: "U1 auth slice",
+			});
+			appendEvent(openLedger(), {
+				projectId: "demo",
+				outcomeId: "out-1",
+				runId: "run-a",
+				kind: "spawn",
+				payload: { source: "pi" },
+			});
+
+			closeAllLedgers();
+
+			const ledger = openLedger();
+			expect(listOutcomes(ledger, "demo")).toEqual([
+				expect.objectContaining({
+					id: "out-1",
+					title: "Ship login",
+					status: "open",
+				}),
+			]);
+			expect(listRuns(ledger, "out-1")).toEqual([
+				expect.objectContaining({
+					id: "run-a",
+					outcomeId: "out-1",
+					status: "queued",
+					prompt: "U1 auth slice",
+				}),
+			]);
+			expect(listEvents(ledger, "out-1").map((event) => event.kind)).toEqual(["spawn"]);
+		});
+	});
+
 	it("keeps create_chat 1:1 alias rows", async () => {
 		await withTemporaryHome(async () => {
 			recordCreatedChatIntent({

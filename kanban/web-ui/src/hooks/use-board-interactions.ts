@@ -70,6 +70,7 @@ interface UseBoardInteractionsInput {
 	taskGitActionLoadingByTaskId: Record<string, TaskGitActionLoadingStateLike>;
 	runAutoReviewGitAction: (taskId: string, action: TaskGitAction) => Promise<boolean>;
 	reviewGitActionHoldTaskIdsRef: MutableRefObject<Set<string>>;
+	syncColumnsFromSessions?: boolean;
 }
 
 export interface UseBoardInteractionsResult {
@@ -115,6 +116,7 @@ export function useBoardInteractions({
 	taskGitActionLoadingByTaskId,
 	runAutoReviewGitAction,
 	reviewGitActionHoldTaskIdsRef,
+	syncColumnsFromSessions = true,
 }: UseBoardInteractionsInput): UseBoardInteractionsResult {
 	const previousSessionsRef = useRef<Record<string, RuntimeTaskSessionSummary>>({});
 	const notificationPermissionPromptInFlightRef = useRef(false);
@@ -432,6 +434,10 @@ export function useBoardInteractions({
 	);
 
 	useEffect(() => {
+		if (!syncColumnsFromSessions) {
+			previousSessionsRef.current = sessions;
+			return;
+		}
 		setBoard((currentBoard) => {
 			let nextBoard = currentBoard;
 			const previousSessions = previousSessionsRef.current;
@@ -512,7 +518,7 @@ export function useBoardInteractions({
 			previousSessionsRef.current = nextPreviousSessions;
 			return nextBoard;
 		});
-	}, [programmaticCardMoveCycle, sessions, setBoard, setSelectedTaskId, tryProgrammaticCardMove]);
+	}, [programmaticCardMoveCycle, sessions, setBoard, setSelectedTaskId, syncColumnsFromSessions, tryProgrammaticCardMove]);
 
 	const { confirmMoveTaskToTrash, handleCreateDependency, handleDeleteDependency, requestMoveTaskToTrash } =
 		useLinkedBacklogTaskActions({

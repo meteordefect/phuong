@@ -572,6 +572,7 @@ export default function App(): ReactElement {
 		taskGitActionLoadingByTaskId,
 		runAutoReviewGitAction,
 		reviewGitActionHoldTaskIdsRef,
+		syncColumnsFromSessions: false,
 	});
 
 	const {

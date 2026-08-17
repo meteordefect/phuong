@@ -313,7 +313,7 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 		name: "list_chats",
 		label: "List Chats",
 		description:
-			"Compatibility alias for listing agent chats (board cards / one-release outcome+run pairs). Prefer list_outcomes and list_runs.",
+			"Compatibility alias for listing agent chats (ledger runs / one-release outcome+run pairs). Prefer list_outcomes and list_runs.",
 		parameters: Type.Object({}),
 		execute: async () => {
 			const cards = await boardOps.listCards();

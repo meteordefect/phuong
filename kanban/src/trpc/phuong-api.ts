@@ -4,11 +4,12 @@ import { access } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
-import type { RuntimeBoardCard, RuntimeBoardData, RuntimeTaskArtifact, RuntimeTaskTier } from "../core/api-contract.js";
+import type { RuntimeTaskArtifact, RuntimeTaskTier } from "../core/api-contract.js";
 import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint.js";
-import { moveTaskToColumn } from "../core/task-board-mutations.js";
 import {
 	getOutcome,
+	getRunWithOutcome,
+	listEvents,
 	listOutcomes,
 	listRuns,
 	openLedger,
@@ -18,15 +19,17 @@ import {
 	recordCreatedOutcome,
 	recordGateEvent,
 	recordSpawnedRun,
+	type LedgerEventRecord,
 } from "../ledger/index.js";
 import { getActiveTurn, getAvailableModels, getSessionStats } from "../manager/phuong-session.js";
 import type { BoardOperations } from "../manager/phuong-tools.js";
 import { listSessions, loadSession } from "../manager/session-history.js";
 import { parseTaskAgentStatus } from "../manager/task-status-protocol.js";
-import { loadWorkspaceContext, mutateWorkspaceState } from "../state/workspace-state.js";
+import { loadWorkspaceContext } from "../state/workspace-state.js";
 import type { RuntimeAppRouter } from "./app-router.js";
 
 const execFileAsync = promisify(execFile);
+const DEFAULT_RUN_BASE_REF = "HEAD";
 
 function createRuntimeTrpcClient(workspaceId: string | null) {
 	return createTRPCProxyClient<RuntimeAppRouter>({
@@ -39,17 +42,19 @@ function createRuntimeTrpcClient(workspaceId: string | null) {
 	});
 }
 
-function findTaskRecord(
-	state: Awaited<ReturnType<ReturnType<typeof createRuntimeTrpcClient>["workspace"]["getState"]["query"]>>,
-	taskId: string,
-): { task: RuntimeBoardCard; columnId: string } | null {
-	for (const column of state.board.columns) {
-		const task = column.cards.find((candidate) => candidate.id === taskId);
-		if (task) {
-			return { task, columnId: column.id };
-		}
+function artifactFromEvent(event: LedgerEventRecord): RuntimeTaskArtifact | null {
+	const path = typeof event.payload.path === "string" ? event.payload.path : null;
+	const mimeType = typeof event.payload.mimeType === "string" ? event.payload.mimeType : null;
+	if (!path || !mimeType) {
+		return null;
 	}
-	return null;
+	return {
+		id: typeof event.payload.id === "string" ? event.payload.id : event.id,
+		path,
+		mimeType,
+		label: typeof event.payload.label === "string" ? event.payload.label : undefined,
+		createdAt: event.createdAt,
+	};
 }
 
 async function ensureRuntimeWorkspace(workspacePath: string): Promise<{ workspacePath: string; workspaceId: string }> {
@@ -74,32 +79,10 @@ function isPathInsideWorktree(worktreePath: string, candidatePath: string): bool
 	return relativePath !== "" && !relativePath.startsWith("..") && !isAbsolute(relativePath);
 }
 
-export function createBoardOperations(workspacePath: string, onBoardMutated?: () => void): BoardOperations {
+export function createBoardOperations(workspacePath: string, _onBoardMutated?: () => void): BoardOperations {
 	const ops: BoardOperations = {
-		createCard: async (prompt: string, baseRef?: string, options?: { model?: string; tier?: RuntimeTaskTier }) => {
+		createCard: async (_prompt: string, _baseRef?: string, options?: { model?: string; tier?: RuntimeTaskTier }) => {
 			const cardId = randomUUID().slice(0, 8);
-			const now = Date.now();
-			const newCard: RuntimeBoardCard = {
-				id: cardId,
-				prompt,
-				startInPlanMode: false,
-				baseRef: baseRef || "HEAD",
-				model: options?.model,
-				tier: options?.tier,
-				createdAt: now,
-				updatedAt: now,
-			};
-
-			await mutateWorkspaceState(workspacePath, (state) => {
-				const board: RuntimeBoardData = JSON.parse(JSON.stringify(state.board));
-				const backlog = board.columns.find((c) => c.id === "backlog");
-				if (backlog) {
-					backlog.cards.push(newCard);
-				}
-				return { board, save: true, value: cardId };
-			});
-
-			onBoardMutated?.();
 			return { cardId, model: options?.model, tier: options?.tier };
 		},
 
@@ -115,7 +98,7 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 					tier: input.tier,
 				});
 			} catch {
-				// Board write already succeeded; ledger dual-write is best-effort.
+				// Ledger write is best-effort for the create_chat alias.
 			}
 		},
 
@@ -147,12 +130,12 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 				if (!existing) {
 					return { ok: false, error: `Outcome "${outcomeId}" was not found.` };
 				}
-				const created = await ops.createCard(prompt, undefined, options);
+				const runId = randomUUID().slice(0, 8);
 				const run = recordSpawnedRun({
 					projectId: workspace.workspaceId,
 					repoPath: workspace.repoPath,
 					outcomeId,
-					runId: created.cardId,
+					runId,
 					prompt,
 					model: options?.model,
 					tier: options?.tier,
@@ -160,11 +143,11 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 				if (!run) {
 					return { ok: false, error: `Could not record run under outcome "${outcomeId}".` };
 				}
-				const started = await ops.startTask(created.cardId);
+				const started = await ops.startTask(run.id);
 				if (!started.ok) {
 					return {
 						ok: false,
-						runId: created.cardId,
+						runId: run.id,
 						outcomeId,
 						model: options?.model,
 						tier: options?.tier,
@@ -173,7 +156,7 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 				}
 				return {
 					ok: true,
-					runId: created.cardId,
+					runId: run.id,
 					outcomeId,
 					model: options?.model,
 					tier: options?.tier,
@@ -214,31 +197,33 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 		},
 
 		listCards: async () => {
-			const runtimeWorkspace = await ensureRuntimeWorkspace(workspacePath);
-			const runtimeClient = createRuntimeTrpcClient(runtimeWorkspace.workspaceId);
-			const runtimeState = await runtimeClient.workspace.getState.query();
-			const cards: {
-				id: string;
-				prompt: string;
-				column: string;
-				sessionState?: string;
-				model?: string;
-				tier?: string;
-			}[] = [];
-			for (const col of runtimeState.board.columns) {
-				for (const card of col.cards) {
-					const session = runtimeState.sessions[card.id];
-					cards.push({
-						id: card.id,
-						prompt: card.prompt,
-						column: col.id,
-						sessionState: session?.state,
-						model: card.model,
-						tier: card.tier,
-					});
+			try {
+				const workspace = await loadWorkspaceContext(workspacePath);
+				const ledger = openLedger();
+				const cards: {
+					id: string;
+					prompt: string;
+					column: string;
+					sessionState?: string;
+					model?: string;
+					tier?: string;
+				}[] = [];
+				for (const outcome of listOutcomes(ledger, workspace.workspaceId)) {
+					for (const run of listRuns(ledger, outcome.id)) {
+						cards.push({
+							id: run.id,
+							prompt: run.prompt,
+							column: run.status,
+							sessionState: run.status,
+							model: run.model ?? undefined,
+							tier: run.tier ?? undefined,
+						});
+					}
 				}
+				return cards;
+			} catch {
+				return [];
 			}
-			return cards;
 		},
 
 		getSessionSummary: async (taskId: string) => {
@@ -247,45 +232,56 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 				const runtimeClient = createRuntimeTrpcClient(runtimeWorkspace.workspaceId);
 				const runtimeState = await runtimeClient.workspace.getState.query();
 				const session = runtimeState.sessions[taskId];
-				if (!session) {
-					return null;
+				if (session) {
+					const finalMessage = session.latestHookActivity?.finalMessage ?? null;
+					return {
+						state: session.state,
+						exitCode: session.exitCode ?? null,
+						reviewReason: session.reviewReason ?? null,
+						lastActivity: session.latestHookActivity?.activityText ?? null,
+						reportedStatus: parseTaskAgentStatus(finalMessage),
+					};
 				}
-				const finalMessage = session.latestHookActivity?.finalMessage ?? null;
-				return {
-					state: session.state,
-					exitCode: session.exitCode ?? null,
-					reviewReason: session.reviewReason ?? null,
-					lastActivity: session.latestHookActivity?.activityText ?? null,
-					reportedStatus: parseTaskAgentStatus(finalMessage),
-				};
 			} catch {
+				// Live PTY summary is optional; fall back to ledger run status.
+			}
+			const identity = getRunWithOutcome(openLedger(), taskId);
+			if (!identity) {
 				return null;
 			}
+			return {
+				state: identity.run.status,
+				exitCode: null,
+				reviewReason: null,
+				lastActivity: null,
+				reportedStatus: identity.run.reportedStatus
+					? { status: identity.run.reportedStatus, reason: null }
+					: null,
+			};
 		},
 
 		startTask: async (taskId: string) => {
 			try {
+				const identity = getRunWithOutcome(openLedger(), taskId);
+				if (!identity) {
+					return { ok: false, error: `Run "${taskId}" was not found.` };
+				}
+
 				const runtimeWorkspace = await ensureRuntimeWorkspace(workspacePath);
 				const runtimeClient = createRuntimeTrpcClient(runtimeWorkspace.workspaceId);
-				const runtimeState = await runtimeClient.workspace.getState.query();
-				const taskRecord = findTaskRecord(runtimeState, taskId);
-				if (!taskRecord) {
-					return { ok: false, error: `Task "${taskId}" was not found.` };
+				let existingSession: { state?: string } | null = null;
+				try {
+					const runtimeState = await runtimeClient.workspace.getState.query();
+					existingSession = runtimeState.sessions[taskId] ?? null;
+				} catch {
+					existingSession = null;
 				}
 
-				if (taskRecord.columnId !== "backlog" && taskRecord.columnId !== "in_progress") {
-					return {
-						ok: false,
-						error: `Task "${taskId}" is in "${taskRecord.columnId}" and cannot be started.`,
-					};
-				}
-
-				const existingSession = runtimeState.sessions[taskId] ?? null;
 				const shouldStartSession = !existingSession || existingSession.state !== "running";
 				if (shouldStartSession) {
 					const ensured = await runtimeClient.workspace.ensureWorktree.mutate({
-						taskId: taskRecord.task.id,
-						baseRef: taskRecord.task.baseRef,
+						taskId: identity.run.id,
+						baseRef: DEFAULT_RUN_BASE_REF,
 					});
 					if (!ensured.ok) {
 						return {
@@ -295,12 +291,11 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 					}
 
 					const started = await runtimeClient.runtime.startTaskSession.mutate({
-						taskId: taskRecord.task.id,
-						prompt: taskRecord.task.prompt,
-						startInPlanMode: taskRecord.task.startInPlanMode,
-						images: taskRecord.task.images,
-						baseRef: taskRecord.task.baseRef,
-						model: taskRecord.task.model,
+						taskId: identity.run.id,
+						prompt: identity.run.prompt,
+						startInPlanMode: false,
+						baseRef: DEFAULT_RUN_BASE_REF,
+						model: identity.run.model ?? undefined,
 					});
 					if (!started.ok || !started.summary) {
 						return {
@@ -310,22 +305,6 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 					}
 				}
 
-				await mutateWorkspaceState(runtimeWorkspace.workspacePath, (state) => {
-					const moved = moveTaskToColumn(state.board, taskId, "in_progress");
-					if (!moved.moved) {
-						return {
-							board: state.board,
-							value: null,
-							save: false,
-						};
-					}
-					return {
-						board: moved.board,
-						value: null,
-					};
-				});
-
-				onBoardMutated?.();
 				return { ok: true };
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -335,16 +314,15 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 
 		runGate: async (taskId: string, command: string) => {
 			try {
+				const identity = getRunWithOutcome(openLedger(), taskId);
+				if (!identity) {
+					return { ok: false, exitCode: null, output: "", error: `Run "${taskId}" was not found.` };
+				}
 				const runtimeWorkspace = await ensureRuntimeWorkspace(workspacePath);
 				const runtimeClient = createRuntimeTrpcClient(runtimeWorkspace.workspaceId);
-				const runtimeState = await runtimeClient.workspace.getState.query();
-				const taskRecord = findTaskRecord(runtimeState, taskId);
-				if (!taskRecord) {
-					return { ok: false, exitCode: null, output: "", error: `Task "${taskId}" was not found.` };
-				}
 				const ensured = await runtimeClient.workspace.ensureWorktree.mutate({
-					taskId: taskRecord.task.id,
-					baseRef: taskRecord.task.baseRef,
+					taskId: identity.run.id,
+					baseRef: DEFAULT_RUN_BASE_REF,
 				});
 				if (!ensured.ok || !ensured.path) {
 					return {
@@ -401,16 +379,15 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 
 		attachArtifact: async (taskId, artifactInput) => {
 			try {
+				const identity = getRunWithOutcome(openLedger(), taskId);
+				if (!identity) {
+					return { ok: false, error: `Run "${taskId}" was not found.` };
+				}
 				const runtimeWorkspace = await ensureRuntimeWorkspace(workspacePath);
 				const runtimeClient = createRuntimeTrpcClient(runtimeWorkspace.workspaceId);
-				const runtimeState = await runtimeClient.workspace.getState.query();
-				const taskRecord = findTaskRecord(runtimeState, taskId);
-				if (!taskRecord) {
-					return { ok: false, error: `Task "${taskId}" was not found.` };
-				}
 				const ensured = await runtimeClient.workspace.ensureWorktree.mutate({
-					taskId: taskRecord.task.id,
-					baseRef: taskRecord.task.baseRef,
+					taskId: identity.run.id,
+					baseRef: DEFAULT_RUN_BASE_REF,
 				});
 				if (!ensured.ok || !ensured.path) {
 					return { ok: false, error: ensured.error ?? "Could not resolve chat worktree." };
@@ -434,22 +411,6 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 					createdAt: Date.now(),
 				};
 
-				await mutateWorkspaceState(runtimeWorkspace.workspacePath, (state) => {
-					const board: RuntimeBoardData = JSON.parse(JSON.stringify(state.board));
-					for (const column of board.columns) {
-						const card = column.cards.find((candidate) => candidate.id === taskId);
-						if (!card) {
-							continue;
-						}
-						const existing = card.artifacts ?? [];
-						card.artifacts = [...existing.filter((item) => item.path !== artifact.path), artifact];
-						card.updatedAt = Date.now();
-						return { board, save: true, value: artifact };
-					}
-					return { board: state.board, save: false, value: null };
-				});
-
-				onBoardMutated?.();
 				recordArtifactEvent({
 					taskId,
 					workspaceId: runtimeWorkspace.workspaceId,
@@ -464,11 +425,14 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 		},
 
 		listArtifacts: async (taskId: string) => {
-			const runtimeWorkspace = await ensureRuntimeWorkspace(workspacePath);
-			const runtimeClient = createRuntimeTrpcClient(runtimeWorkspace.workspaceId);
-			const runtimeState = await runtimeClient.workspace.getState.query();
-			const taskRecord = findTaskRecord(runtimeState, taskId);
-			return taskRecord?.task.artifacts ?? [];
+			const identity = getRunWithOutcome(openLedger(), taskId);
+			if (!identity) {
+				return [];
+			}
+			return listEvents(openLedger(), identity.outcome.id)
+				.filter((event) => event.kind === "artifact" && event.runId === identity.run.id)
+				.map(artifactFromEvent)
+				.filter((artifact): artifact is RuntimeTaskArtifact => artifact !== null);
 		},
 	};
 	return ops;
