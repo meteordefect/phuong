@@ -65,6 +65,8 @@ export interface UseProjectNavigationResult {
 	latestTaskReadyForReview: ReturnType<typeof useRuntimeStateStream>["latestTaskReadyForReview"];
 	latestMcpAuthStatuses: ReturnType<typeof useRuntimeStateStream>["latestMcpAuthStatuses"];
 	clineSessionContextVersion: ReturnType<typeof useRuntimeStateStream>["clineSessionContextVersion"];
+	ledgerEventsByOutcomeId: ReturnType<typeof useRuntimeStateStream>["ledgerEventsByOutcomeId"];
+	latestLedgerEvents: ReturnType<typeof useRuntimeStateStream>["latestLedgerEvents"];
 	streamError: string | null;
 	isRuntimeDisconnected: boolean;
 	hasReceivedSnapshot: boolean;
@@ -100,6 +102,8 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 		latestTaskReadyForReview,
 		latestMcpAuthStatuses,
 		clineSessionContextVersion,
+		ledgerEventsByOutcomeId,
+		latestLedgerEvents,
 		streamError,
 		isRuntimeDisconnected,
 		hasReceivedSnapshot,
@@ -319,6 +323,8 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 		latestTaskReadyForReview,
 		latestMcpAuthStatuses,
 		clineSessionContextVersion,
+		ledgerEventsByOutcomeId,
+		latestLedgerEvents,
 		streamError,
 		isRuntimeDisconnected,
 		hasReceivedSnapshot,

@@ -6,11 +6,7 @@ import App from "@/App";
 import { ClerkAuthGate } from "@/auth/clerk-auth-gate";
 import { AppErrorBoundary } from "@/components/app-error-boundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { initializeSentry } from "@/telemetry/sentry";
-import { TelemetryProvider } from "@/telemetry/posthog-provider";
 import "@/styles/globals.css";
-
-initializeSentry();
 
 const root = document.getElementById("root");
 if (!root) {
@@ -27,26 +23,24 @@ function AuthBoundary({ children }: { children: ReactNode }) {
 }
 
 ReactDOM.createRoot(root).render(
-	<TelemetryProvider>
-		<AppErrorBoundary>
-			<AuthBoundary>
-				<TooltipProvider>
-					<App />
-					<Toaster
-						theme="dark"
-						position="bottom-right"
-						toastOptions={{
-							style: {
-								background: "var(--color-surface-1)",
-								border: "1px solid var(--color-border)",
-								color: "var(--color-text-primary)",
-								fontSize: "13px",
-								whiteSpace: "pre-line"
-							},
-						}}
-					/>
-				</TooltipProvider>
-			</AuthBoundary>
-		</AppErrorBoundary>
-	</TelemetryProvider>,
+	<AppErrorBoundary>
+		<AuthBoundary>
+			<TooltipProvider>
+				<App />
+				<Toaster
+					theme="dark"
+					position="bottom-right"
+					toastOptions={{
+						style: {
+							background: "var(--color-surface-1)",
+							border: "1px solid var(--color-border)",
+							color: "var(--color-text-primary)",
+							fontSize: "13px",
+							whiteSpace: "pre-line"
+						},
+					}}
+				/>
+			</TooltipProvider>
+		</AuthBoundary>
+	</AppErrorBoundary>,
 );

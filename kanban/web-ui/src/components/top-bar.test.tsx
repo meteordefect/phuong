@@ -104,6 +104,37 @@ describe("TopBar script shortcut onboarding", () => {
 		expect(onRunShortcut).not.toHaveBeenCalled();
 	});
 
+	it("renders small project tabs and selects a project", async () => {
+		const onSelectProject = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<TopBar
+					openTargetOptions={[]}
+					selectedOpenTargetId="vscode"
+					onSelectOpenTarget={() => {}}
+					onOpenWorkspace={() => {}}
+					canOpenWorkspace={false}
+					isOpeningWorkspace={false}
+					projects={[
+						{ id: "p1", name: "alpha", path: "/tmp/alpha", taskCounts: { backlog: 0, in_progress: 0, review: 0, trash: 0 } },
+						{ id: "p2", name: "beta", path: "/tmp/beta", taskCounts: { backlog: 0, in_progress: 0, review: 0, trash: 0 } },
+					]}
+					currentProjectId="p1"
+					onSelectProject={onSelectProject}
+				/>,
+			);
+		});
+
+		expect(container.textContent).toContain("alpha");
+		expect(container.textContent).toContain("beta");
+		const beta = findButtonByText(container, "beta");
+		await act(async () => {
+			beta?.click();
+		});
+		expect(onSelectProject).toHaveBeenCalledWith("p2");
+	});
+
 	it("opens settings when the runtime hint is clicked", async () => {
 		const onOpenSettings = vi.fn();
 

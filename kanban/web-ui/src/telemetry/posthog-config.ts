@@ -25,5 +25,5 @@ export const posthogOptions: Partial<PostHogConfig> = {
 };
 
 export function isTelemetryEnabled(): boolean {
-	return Boolean(posthogApiKey);
+	return false;
 }

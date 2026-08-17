@@ -210,9 +210,9 @@ This is the step that ditches Cline Kanban as the product UI. It is not a new ap
 
 ### 5.0 Own the shell
 
-Same `kanban/web-ui`. Same Clerk gate (`main.tsx`) and session token on tRPC.
+- [x] Same `kanban/web-ui`. Same Clerk gate (`main.tsx`) and session token on tRPC.
 
-Keep on the product path:
+- [x] Keep on the product path:
 
 - Clerk + Bearer tRPC
 - Phuong panel
@@ -221,7 +221,7 @@ Keep on the product path:
 - Optional PTY disclosure
 - Ledger `list*` + live hub
 
-Remove from the product path (do not ship as primary UI):
+- [x] Remove from the product path (do not ship as primary UI):
 
 - Cline agent chat panel / composer / model picker / MCP settings
 - Cline onboarding carousel, `cline-setup-section`, `cline-icon`
@@ -233,7 +233,7 @@ Do not add a second origin that talks to the runtime without Clerk.
 
 ### 5.0b Layout order (tune when we get there)
 
-Do not keep the Cline leftover stack (left project tree → fat top bar → PTY as hero → Phuong as a side thought). Reorder at implementation. Starting order, changeable in this phase:
+- [x] Do not keep the Cline leftover stack (left project tree → fat top bar → PTY as hero → Phuong as a side thought). Reorder at implementation. Starting order, changeable in this phase:
 
 **Talk home (Phuong default)**
 
@@ -255,39 +255,34 @@ Phone-width follows the same order: tabs → header/composer → trail → overf
 
 ### 5.1 Trail components
 
-New: `kanban/web-ui/src/components/trail/`
-
-Implement the card map in the visual plan. Data from `listEvents` + live hub.
+- [x] New: `kanban/web-ui/src/components/trail/`
+- [x] Implement the card map in the visual plan. Data from `listEvents` + live hub.
 
 ### 5.2 Project tabs and outcome header
 
-Files:
-
-- `kanban/web-ui/src/components/top-bar.tsx` — small project tabs
-- `kanban/web-ui/src/App.tsx` — main view is selected outcome + trail
-- Retire `project-navigation-panel.tsx` as the primary nav (keep a compact outcome/run list if needed)
+- [x] `kanban/web-ui/src/components/top-bar.tsx` — small project tabs
+- [x] `kanban/web-ui/src/App.tsx` — main view is selected outcome + trail
+- [x] Retire `project-navigation-panel.tsx` as the primary nav (keep a compact outcome/run list if needed)
 
 ### 5.3 Phuong panel
 
-File: `kanban/web-ui/src/components/phuong/phuong-chat-panel.tsx`
-
-Same tokens and card density. Watch-only banner unchanged.
+- [x] `kanban/web-ui/src/components/phuong/phuong-chat-panel.tsx` — same tokens and card density. Watch-only banner unchanged. Compact variant on watch.
 
 ### 5.4 Demote PTY
 
-File: `kanban/web-ui/src/components/detail-panels/agent-terminal-panel.tsx`
-
-Optional disclosure on a run (“live terminal”). Default view is the trail.
+- [x] Optional disclosure on a run (“live terminal”). Default view is the trail.
 
 ### 5.5 Verify
 
-- Opening an outcome shows a Crush-like stream from DB events.
-- Tool cards, spawn rows, status pills visible on a real run.
-- No Crush/Charm branding.
-- Interject still unlocks worker input.
-- Phone-width: tabs + trail usable (scroll, no kanban columns).
+- [x] Opening an outcome shows a Crush-like stream from DB events.
+- [x] Tool cards, spawn rows, status pills visible on a real run.
+- [x] No Crush/Charm branding.
+- [x] Interject still unlocks worker input.
+- [x] Phone-width: tabs + trail usable (scroll, no kanban columns).
 
 **Checkpoint:** This is the user-visible product cutover. The browser app is Phuong’s, not Cline Kanban’s.
+
+> **Done (5.0–5.5)** — Same `kanban/web-ui` + Clerk. Product view is Talk home (project tabs → Phuong) or Watch (header → trail from `listEvents` + hub → run chips → compact Phuong → PTY disclosure). Left project tree, Cline chat/onboarding/setup, Featurebase, and PostHog are off the product path. `BoardData` stays compatibility-only. No Phase 6.
 
 ---
 

@@ -10,12 +10,11 @@ import { ClearTrashDialog } from "@/components/clear-trash-dialog";
 import { DebugDialog } from "@/components/debug-dialog";
 import { AgentTerminalPanel } from "@/components/detail-panels/agent-terminal-panel";
 import { GitHistoryView } from "@/components/git-history-view";
-import { ProjectNavigationPanel } from "@/components/project-navigation-panel";
+import { OutcomeWatchView } from "@/components/outcome-watch-view";
 import { ResizableBottomPane } from "@/components/resizable-bottom-pane";
 import { RuntimeSettingsDialog, type RuntimeSettingsSection } from "@/components/runtime-settings-dialog";
-import { StartupOnboardingDialog } from "@/components/startup-onboarding-dialog";
+import { TalkHomeView } from "@/components/talk-home-view";
 import { TaskCreateDialog } from "@/components/task-create-dialog";
-import { TaskInlineCreateCard } from "@/components/task-inline-create-card";
 import { TopBar } from "@/components/top-bar";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +29,6 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { createInitialBoardData } from "@/data/board-data";
-import { createIdleTaskSession } from "@/hooks/app-utils";
 import { KanbanAccessBlockedFallback } from "@/hooks/kanban-access-blocked-fallback";
 import { RuntimeDisconnectedFallback } from "@/hooks/runtime-disconnected-fallback";
 import { useAppHotkeys } from "@/hooks/use-app-hotkeys";
@@ -38,8 +36,7 @@ import { useBoardInteractions } from "@/hooks/use-board-interactions";
 import { useDebugTools } from "@/hooks/use-debug-tools";
 import { useDocumentVisibility } from "@/hooks/use-document-visibility";
 import { useGitActions } from "@/hooks/use-git-actions";
-import { useHomeProjectAgentChatPanel } from "@/hooks/use-home-project-agent-chat-panel";
-import { useProjectAgentChats } from "@/hooks/use-project-agent-chats";
+import { useLedgerWorkspace } from "@/hooks/use-ledger-workspace";
 import { useKanbanAccessGate } from "@/hooks/use-kanban-access-gate";
 import { useOpenWorkspace } from "@/hooks/use-open-workspace";
 import { usePrewarmedAgentTerminals } from "@/hooks/use-prewarmed-agent-terminals";
@@ -47,54 +44,42 @@ import { parseRemovedProjectPathFromStreamError, useProjectNavigation } from "@/
 import { useProjectUiState } from "@/hooks/use-project-ui-state";
 import { useReviewReadyNotifications } from "@/hooks/use-review-ready-notifications";
 import { useShortcutActions } from "@/hooks/use-shortcut-actions";
-import { useStartupOnboarding } from "@/hooks/use-startup-onboarding";
 import { useTaskBranchOptions } from "@/hooks/use-task-branch-options";
 import { useTaskEditor } from "@/hooks/use-task-editor";
 import { useTaskSessions } from "@/hooks/use-task-sessions";
 import { useTaskStartActions } from "@/hooks/use-task-start-actions";
 import { useTerminalPanels } from "@/hooks/use-terminal-panels";
 import { useWorkspaceSync } from "@/hooks/use-workspace-sync";
-import {
-	getTaskAgentNavbarHint,
-	isTaskAgentSetupSatisfied,
-} from "@/runtime/native-agent";
-import { useIsMobile } from "@/utils/react-use";
+import { getTaskAgentNavbarHint } from "@/runtime/native-agent";
 import type { RuntimeTaskSessionSummary } from "@/runtime/types";
 import { useRuntimeProjectConfig } from "@/runtime/use-runtime-project-config";
 import { useTerminalConnectionReady } from "@/runtime/use-terminal-connection-ready";
 import { useWorkspacePersistence } from "@/runtime/use-workspace-persistence";
 import { saveWorkspaceState } from "@/runtime/workspace-state-query";
-import { addTaskToColumnWithResult, findCardSelection } from "@/state/board-state";
-import {
-	getTaskWorkspaceInfo,
-	getTaskWorkspaceSnapshot,
-	replaceWorkspaceMetadata,
-	resetWorkspaceMetadataStore,
-} from "@/stores/workspace-metadata-store";
+import { findCardSelection } from "@/state/board-state";
+import { replaceWorkspaceMetadata, resetWorkspaceMetadataStore } from "@/stores/workspace-metadata-store";
 import { TERMINAL_THEME_COLORS } from "@/terminal/theme-colors";
 import type { BoardData } from "@/types";
 
 export default function App(): ReactElement {
 	const [board, setBoard] = useState<BoardData>(() => createInitialBoardData());
 	const [sessions, setSessions] = useState<Record<string, RuntimeTaskSessionSummary>>({});
+	const [selectedOutcomeId, setSelectedOutcomeId] = useState<string | null>(null);
 	const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 	const [canPersistWorkspaceState, setCanPersistWorkspaceState] = useState(false);
 	const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 	const [settingsInitialSection, setSettingsInitialSection] = useState<RuntimeSettingsSection | null>(null);
-	const [homeSidebarSection, setHomeSidebarSection] = useState<"projects" | "agent">("agent");
 	const [isClearTrashDialogOpen, setIsClearTrashDialogOpen] = useState(false);
 	const [isGitHistoryOpen, setIsGitHistoryOpen] = useState(false);
-	const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-	const isMobile = useIsMobile();
 	const [pendingTaskStartAfterEditId, setPendingTaskStartAfterEditId] = useState<string | null>(null);
 	const [pendingNewChatStartId, setPendingNewChatStartId] = useState<string | null>(null);
 	const taskEditorResetRef = useRef<() => void>(() => {});
 	const lastStreamErrorRef = useRef<string | null>(null);
 	const handleProjectSwitchStart = useCallback(() => {
 		setCanPersistWorkspaceState(false);
+		setSelectedOutcomeId(null);
 		setSelectedTaskId(null);
 		setIsGitHistoryOpen(false);
-		setIsMobileSidebarOpen(false);
 		setPendingTaskStartAfterEditId(null);
 		taskEditorResetRef.current();
 	}, []);
@@ -103,23 +88,20 @@ export default function App(): ReactElement {
 		projects,
 		workspaceState: streamedWorkspaceState,
 		workspaceMetadata,
-		latestTaskChatMessage,
-		taskChatMessagesByTaskId,
 		latestTaskReadyForReview,
 		latestMcpAuthStatuses,
-		clineSessionContextVersion,
+		ledgerEventsByOutcomeId,
+		latestLedgerEvents,
 		streamError,
 		isRuntimeDisconnected,
 		hasReceivedSnapshot,
 		navigationCurrentProjectId,
-		removingProjectId,
 		hasNoProjects,
 		isProjectSwitching,
 		handleSelectProject,
 		handleAddProject,
 		handleConfirmInitializeGitProject,
 		handleCancelInitializeGitProject,
-		handleRemoveProject,
 		pendingGitInitializationPath,
 		isInitializingGitProject,
 		resetProjectNavigationState,
@@ -133,42 +115,25 @@ export default function App(): ReactElement {
 	const isAwaitingWorkspaceSnapshot = currentProjectId !== null && streamedWorkspaceState === null;
 	const {
 		config: runtimeProjectConfig,
-		isLoading: isRuntimeProjectConfigLoading,
 		refresh: refreshRuntimeProjectConfig,
 	} = useRuntimeProjectConfig(currentProjectId);
 	const { isBlocked: isKanbanAccessBlocked } = useKanbanAccessGate({
 		workspaceId: currentProjectId,
 	});
-	const isTaskAgentReady = isTaskAgentSetupSatisfied(runtimeProjectConfig);
 	const settingsWorkspaceId = navigationCurrentProjectId ?? currentProjectId;
 	const { config: settingsRuntimeProjectConfig, refresh: refreshSettingsRuntimeProjectConfig } =
 		useRuntimeProjectConfig(settingsWorkspaceId);
-	const {
-		isStartupOnboardingDialogOpen,
-		handleOpenStartupOnboardingDialog,
-		handleCloseStartupOnboardingDialog,
-		handleSelectOnboardingAgent,
-		handleOnboardingClineSetupSaved,
-	} = useStartupOnboarding({
-		currentProjectId,
-		runtimeProjectConfig,
-		isRuntimeProjectConfigLoading,
-		isTaskAgentReady,
-		refreshRuntimeProjectConfig,
-		refreshSettingsRuntimeProjectConfig,
-	});
 	const {
 		debugModeEnabled,
 		isDebugDialogOpen,
 		isResetAllStatePending,
 		handleOpenDebugDialog,
-		handleShowStartupOnboardingDialog,
 		handleDebugDialogOpenChange,
 		handleResetAllState,
 	} = useDebugTools({
 		runtimeProjectConfig,
 		settingsRuntimeProjectConfig,
-		onOpenStartupOnboardingDialog: handleOpenStartupOnboardingDialog,
+		onOpenStartupOnboardingDialog: () => {},
 	});
 	const {
 		markConnectionReady: markTerminalConnectionReady,
@@ -193,8 +158,6 @@ export default function App(): ReactElement {
 		stopTaskSession,
 		sendTaskSessionInput,
 		sendTaskChatMessage,
-		cancelTaskChatTurn,
-		fetchTaskChatMessages,
 		cleanupTaskWorkspace,
 		fetchTaskWorkspaceInfo,
 	} = useTaskSessions({
@@ -202,13 +165,7 @@ export default function App(): ReactElement {
 		setSessions,
 	});
 
-	const { chatsByProject } = useProjectAgentChats({
-		currentProjectId,
-		board,
-	});
-
 	const selectedCard = null;
-	const boardSelection = null;
 
 	const {
 		workspacePath,
@@ -246,7 +203,6 @@ export default function App(): ReactElement {
 		displayedProjects,
 		navigationProjectPath,
 		shouldShowProjectLoadingState,
-		isProjectListLoading,
 		shouldUseNavigationPath,
 	} = useProjectUiState({
 		board,
@@ -254,7 +210,7 @@ export default function App(): ReactElement {
 		currentProjectId,
 		projects,
 		navigationCurrentProjectId,
-		selectedTaskId,
+		selectedTaskId: selectedOutcomeId,
 		streamError,
 		isProjectSwitching,
 		isInitialRuntimeLoad,
@@ -425,39 +381,33 @@ export default function App(): ReactElement {
 		terminalBackgroundColor: TERMINAL_THEME_COLORS.surfacePrimary,
 	});
 	const homeTerminalSummary = sessions[homeTerminalTaskId] ?? null;
-
-	const handleCreateNewChat = useCallback(() => {
-		const baseRef = defaultTaskBranchRef ?? "main";
-		const created = addTaskToColumnWithResult(board, "backlog", {
-			prompt: "",
-			baseRef,
-		});
-		setBoard(created.board);
-		setHomeSidebarSection("projects");
-		setSelectedTaskId(created.task.id);
-		setPendingNewChatStartId(created.task.id);
-	}, [board, defaultTaskBranchRef, setBoard]);
+	const ledgerRefreshNonce = latestLedgerEvents?.events[0]?.createdAt ?? 0;
+	const {
+		outcomes,
+		runs,
+		events: trailEvents,
+		isLoadingTrail,
+		refreshOutcomes,
+	} = useLedgerWorkspace({
+		workspaceId: currentProjectId,
+		selectedOutcomeId,
+		hubEventsByOutcomeId: ledgerEventsByOutcomeId,
+		refreshNonce: ledgerRefreshNonce,
+	});
+	const selectedOutcome = outcomes.find((outcome) => outcome.id === selectedOutcomeId) ?? null;
 
 	const handleReturnToPhuong = useCallback(() => {
+		setSelectedOutcomeId(null);
 		setSelectedTaskId(null);
-		setHomeSidebarSection("agent");
-	}, []);
+		setIsGitHistoryOpen(false);
+		refreshOutcomes();
+	}, [refreshOutcomes]);
 
-	const homeProjectAgentChatPanel = useHomeProjectAgentChatPanel({
-		currentProjectId,
-		hasNoProjects,
-		runtimeProjectConfig,
-		board,
-		selectedTaskId,
-		homeSurfaceMode: homeSidebarSection === "agent" && !selectedTaskId ? "conduit" : "dashboard",
-		taskSessions: sessions,
-		clineSessionContextVersion,
-		latestTaskChatMessage,
-		taskChatMessagesByTaskId,
-		onSessionSummary: upsertSession,
-		onCreateNewChat: handleCreateNewChat,
-		onReturnToPhuong: handleReturnToPhuong,
-	});
+	const handleSelectOutcome = useCallback((outcomeId: string) => {
+		setSelectedOutcomeId(outcomeId);
+		setSelectedTaskId(null);
+		setIsGitHistoryOpen(false);
+	}, []);
 	const { runningShortcutLabel, handleSelectShortcutLabel, handleRunShortcut, handleCreateShortcut } = useShortcutActions({
 		currentProjectId,
 		selectedShortcutLabel: runtimeProjectConfig?.selectedShortcutLabel,
@@ -532,6 +482,7 @@ export default function App(): ReactElement {
 	}, [isRuntimeDisconnected, streamError]);
 
 	useEffect(() => {
+		setSelectedOutcomeId(null);
 		setSelectedTaskId(null);
 		resetTaskEditorState();
 		setIsClearTrashDialogOpen(false);
@@ -547,15 +498,6 @@ export default function App(): ReactElement {
 	]);
 
 	useEffect(() => {
-		if (!selectedTaskId) {
-			return;
-		}
-		if (!findCardSelection(board, selectedTaskId)) {
-			setSelectedTaskId(null);
-		}
-	}, [board, selectedTaskId]);
-
-	useEffect(() => {
 		if (selectedCard) {
 			return;
 		}
@@ -566,43 +508,15 @@ export default function App(): ReactElement {
 			return;
 		}
 	}, [closeHomeTerminal, currentProjectId, hasNoProjects, isHomeTerminalOpen, selectedCard]);
-	const showHomeBottomTerminal = !selectedCard && !hasNoProjects && isHomeTerminalOpen;
+	const showHomeBottomTerminal = !selectedCard && !hasNoProjects && !selectedOutcomeId && isHomeTerminalOpen;
 	const homeTerminalSubtitle = useMemo(
 		() => workspacePath ?? navigationProjectPath ?? null,
 		[navigationProjectPath, workspacePath],
 	);
 
-	const handleToggleMobileSidebar = useCallback(() => {
-		setIsMobileSidebarOpen((prev) => !prev);
-	}, []);
-	const handleCloseMobileSidebar = useCallback(() => {
-		setIsMobileSidebarOpen(false);
-	}, []);
-
 	const handleBack = useCallback(() => {
-		setSelectedTaskId(null);
-		setIsGitHistoryOpen(false);
-		setHomeSidebarSection("agent");
-	}, []);
-
-	const handleSelectAgentChatFromSidebar = useCallback(
-		(projectId: string, taskId: string) => {
-			if (navigationCurrentProjectId !== projectId) {
-				void handleSelectProject(projectId);
-			}
-			setHomeSidebarSection("projects");
-			setSelectedTaskId(taskId);
-		},
-		[handleSelectProject, navigationCurrentProjectId],
-	);
-
-	const handleHomeSidebarSectionChange = useCallback((section: "projects" | "agent") => {
-		setHomeSidebarSection(section);
-		if (section === "agent") {
-			setSelectedTaskId(null);
-			setIsGitHistoryOpen(false);
-		}
-	}, []);
+		handleReturnToPhuong();
+	}, [handleReturnToPhuong]);
 
 	const handleOpenSettings = useCallback((section?: RuntimeSettingsSection) => {
 		setSettingsInitialSection(section ?? null);
@@ -753,31 +667,6 @@ export default function App(): ReactElement {
 		[handleCancelCreateTask],
 	);
 
-	const inlineTaskEditor = editingTaskId ? (
-		<TaskInlineCreateCard
-			prompt={editTaskPrompt}
-			onPromptChange={setEditTaskPrompt}
-			images={editTaskImages}
-			onImagesChange={setEditTaskImages}
-			onCreate={handleSaveEditedTask}
-			onCreateAndStart={handleSaveAndStartEditedTask}
-			onCancel={handleCancelEditTask}
-			startInPlanMode={editTaskStartInPlanMode}
-			onStartInPlanModeChange={setEditTaskStartInPlanMode}
-			startInPlanModeDisabled={isEditTaskStartInPlanModeDisabled}
-			autoReviewEnabled={editTaskAutoReviewEnabled}
-			onAutoReviewEnabledChange={setEditTaskAutoReviewEnabled}
-			autoReviewMode={editTaskAutoReviewMode}
-			onAutoReviewModeChange={setEditTaskAutoReviewMode}
-			workspaceId={currentProjectId}
-			branchRef={editTaskBranchRef}
-			branchOptions={createTaskBranchOptions}
-			onBranchRefChange={setEditTaskBranchRef}
-			mode="edit"
-			idPrefix={`inline-edit-task-${editingTaskId}`}
-		/>
-	) : undefined;
-
 	if (isRuntimeDisconnected) {
 		return <RuntimeDisconnectedFallback />;
 	}
@@ -787,44 +676,21 @@ export default function App(): ReactElement {
 
 	return (
 		<div className="flex h-[100svh] min-w-0 overflow-hidden">
-			<ProjectNavigationPanel
-				projects={displayedProjects}
-				isLoadingProjects={isProjectListLoading}
-				currentProjectId={navigationCurrentProjectId}
-				removingProjectId={removingProjectId}
-				activeSection={homeSidebarSection}
-				onActiveSectionChange={handleHomeSidebarSectionChange}
-				canShowAgentSection={!hasNoProjects && Boolean(currentProjectId)}
-				chatsByProject={chatsByProject}
-				selectedTaskId={selectedTaskId}
-				onSelectProject={(projectId) => {
-					void handleSelectProject(projectId);
-				}}
-				onSelectAgentChat={handleSelectAgentChatFromSidebar}
-				onCreateNewChat={handleCreateNewChat}
-				onRemoveProject={handleRemoveProject}
-				onAddProject={() => {
-					void handleAddProject();
-				}}
-				isMobile={isMobile}
-				isMobileOpen={isMobileSidebarOpen}
-				onMobileClose={handleCloseMobileSidebar}
-			/>
 			<div className="flex flex-col flex-1 min-w-0 overflow-hidden">
 				<TopBar
-					onBack={selectedTaskId ? handleBack : undefined}
+					onBack={selectedOutcomeId ? handleBack : undefined}
 					workspacePath={navbarWorkspacePath}
 					isWorkspacePathLoading={shouldShowProjectLoadingState}
 					workspaceHint={undefined}
 					runtimeHint={navbarRuntimeHint}
-					selectedTaskId={null}
+					selectedTaskId={selectedTaskId}
 					selectedTaskBaseRef={null}
 					showHomeGitSummary={!hasNoProjects}
 					runningGitAction={hasNoProjects ? null : runningGitAction}
 					onGitFetch={() => { void runGitAction("fetch"); }}
 					onGitPull={() => { void runGitAction("pull"); }}
 					onGitPush={() => { void runGitAction("push"); }}
-					onToggleTerminal={hasNoProjects ? undefined : handleToggleHomeTerminal}
+					onToggleTerminal={hasNoProjects || selectedOutcomeId ? undefined : handleToggleHomeTerminal}
 					isTerminalOpen={showHomeBottomTerminal}
 					isTerminalLoading={isHomeTerminalStarting}
 					onOpenSettings={handleOpenSettings}
@@ -845,8 +711,14 @@ export default function App(): ReactElement {
 					onToggleGitHistory={hasNoProjects ? undefined : handleToggleGitHistory}
 					isGitHistoryOpen={isGitHistoryOpen}
 					hideProjectDependentActions={shouldHideProjectDependentTopBarActions}
-					isMobile={isMobile}
-					onToggleMobileSidebar={handleToggleMobileSidebar}
+					projects={displayedProjects}
+					currentProjectId={navigationCurrentProjectId}
+					onSelectProject={(projectId) => {
+						void handleSelectProject(projectId);
+					}}
+					onAddProject={() => {
+						void handleAddProject();
+					}}
 				/>
 				<div className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden">
 					<div className="kb-home-layout">
@@ -860,7 +732,7 @@ export default function App(): ReactElement {
 									<FolderOpen size={48} strokeWidth={1} />
 									<h3 className="text-sm font-semibold text-text-primary">No projects yet</h3>
 									<p className="text-[13px] text-text-secondary">
-										Add a git repository to start using Kanban.
+										Add a git repository to start talking to Phuong.
 									</p>
 									<Button
 										variant="primary"
@@ -887,9 +759,28 @@ export default function App(): ReactElement {
 											}}
 											isDiscardWorkingChangesPending={isDiscardingHomeWorkingChanges}
 										/>
+									) : selectedOutcome && currentProjectId ? (
+										<OutcomeWatchView
+											workspaceId={currentProjectId}
+											outcome={selectedOutcome}
+											runs={runs}
+											events={trailEvents}
+											isLoadingTrail={isLoadingTrail}
+											selectedRunId={selectedTaskId}
+											onSelectRun={setSelectedTaskId}
+											taskSessions={sessions}
+											onSessionSummary={upsertSession}
+											onReturnToPhuong={handleReturnToPhuong}
+										/>
+									) : currentProjectId ? (
+										<TalkHomeView
+											workspaceId={currentProjectId}
+											outcomes={outcomes}
+											onSelectOutcome={handleSelectOutcome}
+										/>
 									) : (
-										<div className="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden">
-											{homeProjectAgentChatPanel}
+										<div className="flex flex-1 min-h-0 items-center justify-center bg-surface-0">
+											<Spinner size={30} />
 										</div>
 									)}
 								</div>
@@ -958,7 +849,7 @@ export default function App(): ReactElement {
 				open={isDebugDialogOpen}
 				onOpenChange={handleDebugDialogOpenChange}
 				isResetAllStatePending={isResetAllStatePending}
-				onShowStartupOnboardingDialog={handleShowStartupOnboardingDialog}
+				onShowStartupOnboardingDialog={() => {}}
 				onResetAllState={handleResetAllState}
 			/>
 			<TaskCreateDialog
@@ -991,18 +882,6 @@ export default function App(): ReactElement {
 				onCancel={() => setIsClearTrashDialogOpen(false)}
 				onConfirm={handleConfirmClearTrash}
 			/>
-			<StartupOnboardingDialog
-				open={isStartupOnboardingDialogOpen}
-				onClose={handleCloseStartupOnboardingDialog}
-				selectedAgentId={runtimeProjectConfig?.selectedAgentId ?? null}
-				agents={runtimeProjectConfig?.agents ?? []}
-				clineProviderSettings={runtimeProjectConfig?.clineProviderSettings ?? null}
-				workspaceId={currentProjectId}
-				runtimeConfig={runtimeProjectConfig ?? null}
-				onSelectAgent={handleSelectOnboardingAgent}
-				onClineSetupSaved={handleOnboardingClineSetupSaved}
-			/>
-
 			<AlertDialog
 				open={pendingGitInitializationPath !== null}
 				onOpenChange={(open) => {

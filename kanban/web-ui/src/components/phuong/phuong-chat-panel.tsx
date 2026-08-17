@@ -35,8 +35,8 @@ interface LoadedSession {
 
 interface PhuongChatPanelProps {
 	workspaceId: string | null;
-	/** Full-page conduit vs compact sidebar agent panel. */
-	variant?: "sidebar" | "conduit";
+	/** Full-page conduit, compact watch rail, or leftover sidebar density. */
+	variant?: "sidebar" | "conduit" | "compact";
 }
 
 type ViewMode = "chat" | "history" | "viewing-session";
@@ -398,9 +398,12 @@ export function PhuongChatPanel({ workspaceId, variant = "sidebar" }: PhuongChat
 		);
 	}
 
+	const isCompact = variant === "compact";
+	const isConduit = variant === "conduit";
+
 	return (
-		<div className={cn("flex h-full min-w-0 flex-col", variant === "conduit" && "bg-surface-0")}>
-			<div className="flex items-center justify-end gap-1 border-b border-border px-2 py-1">
+		<div className={cn("flex h-full min-w-0 flex-col", isConduit && "bg-surface-0")}>
+			<div className={cn("flex items-center justify-end gap-1 border-b border-border", isCompact ? "px-2 py-0.5" : "px-2 py-1")}>
 				{messages.length > 0 && (
 					<button
 						type="button"
@@ -422,12 +425,14 @@ export function PhuongChatPanel({ workspaceId, variant = "sidebar" }: PhuongChat
 					<History size={14} />
 				</button>
 			</div>
-			<div className={cn("flex-1 min-w-0 overflow-y-auto py-2 space-y-3", variant === "conduit" ? "px-4" : "px-2")}>
+			<div className={cn("flex-1 min-w-0 overflow-y-auto space-y-2", isConduit ? "px-4 py-2" : isCompact ? "px-2 py-1.5" : "px-2 py-2")}>
 				{messages.length === 0 && (
 					<div className="flex h-full items-center justify-center text-center text-xs text-text-tertiary px-4">
-						{variant === "conduit"
-							? "Tell Phuong what to ship. She plans, routes Pi chats, verifies, and reports — you can watch from Dashboard without interjecting."
-							: "Ask Phuong to plan work, route chats, or check status. Dashboard is optional."}
+						{isConduit
+							? "Tell Phuong what to ship. She plans, routes Pi runs, verifies, and reports — open an outcome to watch."
+							: isCompact
+								? "Ask Phuong without leaving this outcome."
+								: "Ask Phuong to plan work, route runs, or check status."}
 					</div>
 				)}
 				{messages.map((msg, i) => (
@@ -435,7 +440,7 @@ export function PhuongChatPanel({ workspaceId, variant = "sidebar" }: PhuongChat
 				))}
 				<div ref={messagesEndRef} />
 			</div>
-			<div className={cn("border-t border-border", variant === "conduit" ? "p-3" : "p-2")}>
+			<div className={cn("border-t border-border", isConduit ? "p-3" : isCompact ? "p-1.5" : "p-2")}>
 				{availableModels.length > 1 && (
 					<div className="flex items-center gap-1.5 mb-1.5">
 						<div className="relative">
