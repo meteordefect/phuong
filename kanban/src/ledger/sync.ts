@@ -6,13 +6,23 @@ import {
 	appendEvent,
 	getOutcome,
 	getRun,
+	getRunWithOutcome,
 	insertOutcomeIfMissing,
 	insertRunIfMissing,
 	updateOutcomeStatus,
 	updateRunStatus,
 	upsertProject,
 } from "./queries.js";
-import type { LedgerEventKind, LedgerEventRecord, LedgerOutcomeStatus, LedgerRunStatus, LedgerTier } from "./types.js";
+import type {
+	LedgerAgentRunRecord,
+	LedgerEventKind,
+	LedgerEventRecord,
+	LedgerOutcomeRecord,
+	LedgerOutcomeStatus,
+	LedgerRunRole,
+	LedgerRunStatus,
+	LedgerTier,
+} from "./types.js";
 
 export interface LedgerCardIntent {
 	cardId: string;
@@ -193,6 +203,79 @@ export function recordCreatedChatIntent(input: {
 	}
 }
 
+export function recordCreatedOutcome(input: {
+	projectId: string;
+	repoPath: string;
+	outcomeId: string;
+	title: string;
+	description: string;
+	status?: LedgerOutcomeStatus;
+	createdAt?: number;
+}): LedgerOutcomeRecord | null {
+	try {
+		const ledger = openLedger();
+		recordProject(
+			{
+				projectId: input.projectId,
+				repoPath: input.repoPath,
+			},
+			ledger,
+		);
+		return insertOutcomeIfMissing(ledger, {
+			id: input.outcomeId,
+			projectId: input.projectId,
+			title: input.title,
+			description: input.description,
+			status: input.status ?? "open",
+			createdAt: input.createdAt,
+		}).outcome;
+	} catch (error) {
+		warnLedgerFailure("create outcome", error);
+		return null;
+	}
+}
+
+export function recordSpawnedRun(input: {
+	projectId: string;
+	repoPath: string;
+	outcomeId: string;
+	runId: string;
+	prompt: string;
+	model?: string | null;
+	tier?: LedgerTier | null;
+	role?: LedgerRunRole;
+	createdAt?: number;
+}): LedgerAgentRunRecord | null {
+	try {
+		const ledger = openLedger();
+		recordProject(
+			{
+				projectId: input.projectId,
+				repoPath: input.repoPath,
+			},
+			ledger,
+		);
+		const outcome = getOutcome(ledger, input.outcomeId);
+		if (!outcome) {
+			return null;
+		}
+		return insertRunIfMissing(ledger, {
+			id: input.runId,
+			outcomeId: outcome.id,
+			role: input.role ?? "worker",
+			agent: "pi",
+			tier: input.tier ?? null,
+			model: input.model ?? null,
+			prompt: input.prompt,
+			status: "queued",
+			createdAt: input.createdAt,
+		}).run;
+	} catch (error) {
+		warnLedgerFailure("spawn run", error);
+		return null;
+	}
+}
+
 export function recordRunSpawn(input: {
 	taskId: string;
 	workspaceId?: string;
@@ -205,10 +288,9 @@ export function recordRunSpawn(input: {
 }): LedgerEventRecord | null {
 	try {
 		const ledger = openLedger();
-		let run = getRun(ledger, input.taskId);
-		let outcome = getOutcome(ledger, input.taskId);
-		if (!run || !outcome) {
-			if (!input.workspaceId) {
+		let identity = getRunWithOutcome(ledger, input.taskId);
+		if (!identity) {
+			if (!input.workspaceId || getRun(ledger, input.taskId)) {
 				return null;
 			}
 			recordOutcomeAndRunFromCard(
@@ -225,12 +307,12 @@ export function recordRunSpawn(input: {
 				},
 				ledger,
 			);
-			run = getRun(ledger, input.taskId);
-			outcome = getOutcome(ledger, input.taskId);
+			identity = getRunWithOutcome(ledger, input.taskId);
 		}
-		if (!run || !outcome) {
+		if (!identity) {
 			return null;
 		}
+		const { run, outcome } = identity;
 		const startedAt = Date.now();
 		updateRunStatus(ledger, run.id, {
 			status: "running",
@@ -428,10 +510,9 @@ function resolveRunAndOutcome(
 	ledger: LedgerDatabase,
 	input: { taskId: string; workspaceId?: string; repoPath?: string },
 ): { runId: string; outcomeId: string; projectId: string } | null {
-	let run = getRun(ledger, input.taskId);
-	let outcome = getOutcome(ledger, input.taskId);
-	if (!run || !outcome) {
-		if (!input.workspaceId) {
+	let identity = getRunWithOutcome(ledger, input.taskId);
+	if (!identity) {
+		if (!input.workspaceId || getRun(ledger, input.taskId)) {
 			return null;
 		}
 		recordOutcomeAndRunFromCard(
@@ -446,16 +527,15 @@ function resolveRunAndOutcome(
 			},
 			ledger,
 		);
-		run = getRun(ledger, input.taskId);
-		outcome = getOutcome(ledger, input.taskId);
+		identity = getRunWithOutcome(ledger, input.taskId);
 	}
-	if (!run || !outcome) {
+	if (!identity) {
 		return null;
 	}
 	return {
-		runId: run.id,
-		outcomeId: outcome.id,
-		projectId: outcome.projectId,
+		runId: identity.run.id,
+		outcomeId: identity.outcome.id,
+		projectId: identity.outcome.projectId,
 	};
 }
 

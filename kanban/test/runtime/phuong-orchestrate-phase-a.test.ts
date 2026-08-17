@@ -5,6 +5,10 @@ import { CREATE_CHAT_PROMPT_CONTRACT, createPhuongTools } from "../../src/manage
 
 const noopBoardOps: BoardOperations = {
 	createCard: async () => ({ cardId: "test-card" }),
+	createOutcome: async () => ({ outcomeId: "out-1", title: "Test outcome" }),
+	spawnRun: async (outcomeId) => ({ ok: true, runId: "run-1", outcomeId }),
+	listOutcomes: async () => [],
+	listRuns: async () => [],
 	listCards: async () => [],
 	startTask: async () => ({ ok: true }),
 	getSessionSummary: async () => null,
@@ -28,6 +32,9 @@ describe("Phuong Phase A orchestration protocol", () => {
 		expect(prompt).toContain("model routing");
 		expect(prompt).toContain("run_gate");
 		expect(prompt).toContain("attach_artifact");
+		expect(prompt).toContain("create_outcome");
+		expect(prompt).toContain("spawn_run");
+		expect(prompt).toContain("list_outcomes");
 	});
 
 	it("assemblePhuongSystemPrompt returns the fallback when memory is not configured", () => {
@@ -123,5 +130,94 @@ describe("Phuong Phase A orchestration protocol", () => {
 		expect(check?.description).toMatch(/Gate 1/i);
 		expect(check?.description).toMatch(/spec \/ environment \/ capability/i);
 		expect(check?.description).toMatch(/NEEDS_CONTEXT/i);
+	});
+});
+
+describe("Phase 4 outcome nouns", () => {
+	it("exposes create_outcome, spawn_run, list_outcomes, list_runs and keeps list_chats", () => {
+		const tools = createPhuongTools(noopBoardOps);
+		expect(tools.some((t) => t.name === "create_outcome")).toBe(true);
+		expect(tools.some((t) => t.name === "spawn_run")).toBe(true);
+		expect(tools.some((t) => t.name === "list_outcomes")).toBe(true);
+		expect(tools.some((t) => t.name === "list_runs")).toBe(true);
+		expect(tools.some((t) => t.name === "create_chat")).toBe(true);
+		expect(tools.some((t) => t.name === "list_chats")).toBe(true);
+	});
+
+	it("create_outcome description carries the prompt contract; spawn_run is the unit slice", () => {
+		const tools = createPhuongTools(noopBoardOps);
+		const createOutcome = tools.find((t) => t.name === "create_outcome");
+		const spawnRun = tools.find((t) => t.name === "spawn_run");
+		const descriptionSchema = (
+			createOutcome!.parameters as {
+				properties?: { description?: { description?: string } };
+			}
+		).properties?.description;
+		const outcomeText = `${createOutcome!.description}\n${descriptionSchema?.description ?? ""}`;
+		for (const section of CREATE_CHAT_PROMPT_CONTRACT) {
+			expect(outcomeText.toLowerCase()).toContain(
+				section === "STATUS marker reminder" ? "status:" : section.toLowerCase().split(" / ")[0]!,
+			);
+		}
+		expect(spawnRun?.description).toMatch(/unit slice/i);
+		expect(spawnRun?.description).toMatch(/outcome/i);
+	});
+
+	it("multi-unit request creates one outcome and N runs; list_chats still works", async () => {
+		const createOutcome = vi.fn(async () => ({ outcomeId: "out-9", title: "Ship login" }));
+		const spawnRun = vi.fn(async (outcomeId: string, prompt: string) => ({
+			ok: true,
+			runId: prompt.includes("U1") ? "run-a" : "run-b",
+			outcomeId,
+		}));
+		const listCards = vi.fn(async () => [
+			{ id: "run-a", prompt: "U1 auth", column: "in_progress" },
+			{ id: "run-b", prompt: "U2 ui", column: "backlog" },
+		]);
+		const tools = createPhuongTools({
+			...noopBoardOps,
+			createOutcome,
+			spawnRun,
+			listCards,
+		});
+		const createOutcomeTool = tools.find((t) => t.name === "create_outcome");
+		const spawnRunTool = tools.find((t) => t.name === "spawn_run");
+		const listChatsTool = tools.find((t) => t.name === "list_chats");
+		if (!createOutcomeTool || !spawnRunTool || !listChatsTool) {
+			throw new Error("Phase 4 tools are missing.");
+		}
+		await createOutcomeTool.execute(
+			"tool-out",
+			{
+				description:
+					"Objective: ship login\nIn-scope / out-of-scope: auth\nDone-criteria: tests\nFiles / subsystems: app\nSTATUS: DONE",
+			},
+			undefined,
+			undefined,
+			{} as never,
+		);
+		await spawnRunTool.execute(
+			"tool-u1",
+			{ outcome_id: "out-9", prompt: "U1 auth slice", tier: "T1" },
+			undefined,
+			undefined,
+			{} as never,
+		);
+		await spawnRunTool.execute(
+			"tool-u2",
+			{ outcome_id: "out-9", prompt: "U2 ui slice", tier: "T1" },
+			undefined,
+			undefined,
+			{} as never,
+		);
+		expect(createOutcome).toHaveBeenCalledTimes(1);
+		expect(spawnRun).toHaveBeenCalledTimes(2);
+		expect(spawnRun).toHaveBeenNthCalledWith(1, "out-9", "U1 auth slice", expect.objectContaining({ tier: "T1" }));
+		expect(spawnRun).toHaveBeenNthCalledWith(2, "out-9", "U2 ui slice", expect.objectContaining({ tier: "T1" }));
+
+		const listed = await listChatsTool.execute("tool-list", {}, undefined, undefined, {} as never);
+		const text = listed.content.map((part) => ("text" in part ? part.text : "")).join("\n");
+		expect(text).toContain("run-a");
+		expect(text).toContain("run-b");
 	});
 });

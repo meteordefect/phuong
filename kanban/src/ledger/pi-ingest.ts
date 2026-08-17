@@ -8,8 +8,8 @@ import { captureNodeException } from "../telemetry/sentry-node.js";
 import { type LedgerDatabase, openLedger } from "./db.js";
 import {
 	appendEvent,
-	getOutcome,
 	getRun,
+	getRunWithOutcome,
 	listEvents,
 	updateOutcomeStatus,
 	updateRunStatus,
@@ -101,6 +101,19 @@ export function mapReportedStatusToRunState(status: LedgerReportedStatus): {
 		default:
 			return { runStatus: "done", outcomeStatus: "verifying" };
 	}
+}
+
+export function mapHookEventToLedgerStatuses(event: RuntimeHookEvent): {
+	runStatus: LedgerRunStatus;
+	outcomeStatus: LedgerOutcomeStatus;
+} | null {
+	if (event === "to_in_progress") {
+		return { runStatus: "running", outcomeStatus: "in_progress" };
+	}
+	if (event === "to_review") {
+		return { runStatus: "done", outcomeStatus: "verifying" };
+	}
+	return null;
 }
 
 export function mapPiHookActivityToLedger(
@@ -261,9 +274,11 @@ function ensureRun(
 		},
 		ledger,
 	);
-	let run = getRun(ledger, input.taskId);
-	let outcome = getOutcome(ledger, input.taskId);
-	if (!run || !outcome) {
+	let identity = getRunWithOutcome(ledger, input.taskId);
+	if (!identity) {
+		if (getRun(ledger, input.taskId)) {
+			return null;
+		}
 		recordOutcomeAndRunFromCard(
 			{
 				projectId: input.workspaceId,
@@ -276,17 +291,16 @@ function ensureRun(
 			},
 			ledger,
 		);
-		run = getRun(ledger, input.taskId);
-		outcome = getOutcome(ledger, input.taskId);
+		identity = getRunWithOutcome(ledger, input.taskId);
 	}
-	if (!run || !outcome) {
+	if (!identity) {
 		return null;
 	}
 	return {
-		projectId: outcome.projectId,
-		outcomeId: outcome.id,
-		runId: run.id,
-		prompt: run.prompt,
+		projectId: identity.outcome.projectId,
+		outcomeId: identity.outcome.id,
+		runId: identity.run.id,
+		prompt: identity.run.prompt,
 	};
 }
 
@@ -350,6 +364,24 @@ function applyReportedStatus(
 	updateOutcomeStatus(ledger, identity.outcomeId, next.outcomeStatus, endedAt);
 }
 
+function applyHookNotifyStatus(
+	ledger: LedgerDatabase,
+	identity: { outcomeId: string; runId: string },
+	event: RuntimeHookEvent,
+): void {
+	const next = mapHookEventToLedgerStatuses(event);
+	if (!next) {
+		return;
+	}
+	const now = Date.now();
+	updateRunStatus(ledger, identity.runId, {
+		status: next.runStatus,
+		startedAt: next.runStatus === "running" ? now : null,
+		endedAt: next.runStatus === "running" ? null : now,
+	});
+	updateOutcomeStatus(ledger, identity.outcomeId, next.outcomeStatus, now);
+}
+
 export function recordPiWorkerHook(input: PiHookIngestInput): LedgerEventRecord[] {
 	try {
 		const ledger = input.ledger ?? openLedger();
@@ -367,7 +399,11 @@ export function recordPiWorkerHook(input: PiHookIngestInput): LedgerEventRecord[
 			});
 		}
 		const written = appendMappedEvents(ledger, identity, mapped, seen);
-		applyReportedStatus(ledger, identity, mapped);
+		if (mapped.some((event) => event.kind === "status")) {
+			applyReportedStatus(ledger, identity, mapped);
+		} else {
+			applyHookNotifyStatus(ledger, identity, input.event);
+		}
 		return written;
 	} catch (error) {
 		warnPiIngestFailure("hook", error);

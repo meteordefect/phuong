@@ -5,6 +5,7 @@ export {
 	getOutcome,
 	getProject,
 	getRun,
+	getRunWithOutcome,
 	insertOutcomeIfMissing,
 	insertRunIfMissing,
 	listEvents,
@@ -20,6 +21,7 @@ export {
 export { LEDGER_MIGRATIONS, LEDGER_SCHEMA_VERSION } from "./schema.js";
 export {
 	ingestPiSessionJsonl,
+	mapHookEventToLedgerStatuses,
 	mapPiHookActivityToLedger,
 	mapPiSessionEntriesToLedger,
 	mapReportedStatusToRunState,
@@ -33,7 +35,9 @@ export {
 	mapPhuongSessionEventToLedger,
 	recordArtifactEvent,
 	recordCreatedChatIntent,
+	recordCreatedOutcome,
 	recordGateEvent,
+	recordSpawnedRun,
 	recordOutcomeAndRunFromCard,
 	recordPhuongTrailEvent,
 	recordProject,

@@ -99,6 +99,7 @@ export const runtimeTaskArtifactSchema = z.object({
 });
 export type RuntimeTaskArtifact = z.infer<typeof runtimeTaskArtifactSchema>;
 
+/** Compatibility board card. Do not add product fields here — use RuntimeOutcome / RuntimeAgentRun. */
 export const runtimeBoardCardSchema = z.object({
 	id: z.string(),
 	prompt: z.string(),
@@ -401,16 +402,105 @@ export const runtimeStateStreamErrorMessageSchema = z.object({
 });
 export type RuntimeStateStreamErrorMessage = z.infer<typeof runtimeStateStreamErrorMessageSchema>;
 
+export const runtimeOutcomeStatusSchema = z.enum([
+	"open",
+	"in_progress",
+	"verifying",
+	"done",
+	"blocked",
+	"parked",
+]);
+export type RuntimeOutcomeStatus = z.infer<typeof runtimeOutcomeStatusSchema>;
+
+export const runtimeAgentRunStatusSchema = z.enum([
+	"queued",
+	"running",
+	"done",
+	"failed",
+	"blocked",
+	"needs_context",
+]);
+export type RuntimeAgentRunStatus = z.infer<typeof runtimeAgentRunStatusSchema>;
+
+export const runtimeAgentRunRoleSchema = z.enum(["worker", "verifier", "gate"]);
+export type RuntimeAgentRunRole = z.infer<typeof runtimeAgentRunRoleSchema>;
+
+export const runtimeLedgerEventKindSchema = z.enum([
+	"user_message",
+	"assistant_message",
+	"tool_call",
+	"tool_result",
+	"status",
+	"gate",
+	"artifact",
+	"file_change",
+	"spawn",
+	"system",
+]);
+export type RuntimeLedgerEventKind = z.infer<typeof runtimeLedgerEventKindSchema>;
+
+export const runtimeReportedStatusSchema = z.enum([
+	"DONE",
+	"DONE_WITH_CONCERNS",
+	"NEEDS_CONTEXT",
+	"BLOCKED",
+]);
+export type RuntimeReportedStatus = z.infer<typeof runtimeReportedStatusSchema>;
+
+export const runtimeOutcomeSchema = z.object({
+	id: z.string(),
+	projectId: z.string(),
+	title: z.string(),
+	description: z.string(),
+	status: runtimeOutcomeStatusSchema,
+	createdAt: z.number(),
+	updatedAt: z.number(),
+});
+export type RuntimeOutcome = z.infer<typeof runtimeOutcomeSchema>;
+
+export const runtimeAgentRunSchema = z.object({
+	id: z.string(),
+	outcomeId: z.string(),
+	role: runtimeAgentRunRoleSchema,
+	agent: z.string(),
+	tier: runtimeTaskTierSchema.nullable(),
+	model: z.string().nullable(),
+	prompt: z.string(),
+	worktreePath: z.string().nullable(),
+	piSessionPath: z.string().nullable(),
+	status: runtimeAgentRunStatusSchema,
+	reportedStatus: runtimeReportedStatusSchema.nullable(),
+	createdAt: z.number(),
+	startedAt: z.number().nullable(),
+	endedAt: z.number().nullable(),
+});
+export type RuntimeAgentRun = z.infer<typeof runtimeAgentRunSchema>;
+
 export const runtimeLedgerEventSchema = z.object({
 	id: z.string(),
 	projectId: z.string(),
 	outcomeId: z.string(),
 	runId: z.string().nullable(),
-	kind: z.string(),
+	kind: runtimeLedgerEventKindSchema,
 	payload: z.record(z.string(), z.unknown()),
 	createdAt: z.number(),
 });
 export type RuntimeLedgerEvent = z.infer<typeof runtimeLedgerEventSchema>;
+
+export const runtimeListOutcomesResponseSchema = z.object({
+	outcomes: z.array(runtimeOutcomeSchema),
+});
+export type RuntimeListOutcomesResponse = z.infer<typeof runtimeListOutcomesResponseSchema>;
+
+export const runtimeListRunsResponseSchema = z.object({
+	runs: z.array(runtimeAgentRunSchema),
+});
+export type RuntimeListRunsResponse = z.infer<typeof runtimeListRunsResponseSchema>;
+
+export const runtimeListEventsResponseSchema = z.object({
+	events: z.array(runtimeLedgerEventSchema),
+});
+export type RuntimeListEventsResponse = z.infer<typeof runtimeListEventsResponseSchema>;
 
 export const runtimeStateStreamLedgerEventsMessageSchema = z.object({
 	type: z.literal("ledger_events_appended"),

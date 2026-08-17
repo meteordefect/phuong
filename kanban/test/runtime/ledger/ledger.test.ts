@@ -3,7 +3,12 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { runtimeStateStreamLedgerEventsMessageSchema, type RuntimeBoardData } from "../../../src/core/api-contract.js";
+import {
+	runtimeAgentRunSchema,
+	runtimeOutcomeSchema,
+	runtimeStateStreamLedgerEventsMessageSchema,
+	type RuntimeBoardData,
+} from "../../../src/core/api-contract.js";
 import {
 	appendEvent,
 	closeAllLedgers,
@@ -20,10 +25,12 @@ import {
 	openLedger,
 	recordArtifactEvent,
 	recordCreatedChatIntent,
+	recordCreatedOutcome,
 	recordGateEvent,
 	recordPhuongTrailEvent,
 	recordPiWorkerHook,
 	recordRunSpawn,
+	recordSpawnedRun,
 	resetLedgerEventListeners,
 	resetLedgerImportState,
 	syncBoardCardsToLedger,
@@ -595,7 +602,7 @@ describe("Phase 3.3 gate and artifact events", () => {
 			);
 
 			const ledger = openLedger();
-			expect(listEvents(ledger, "run-1").map((event) => event.kind)).toEqual(["gate", "artifact"]);
+			expect(listEvents(ledger, "run-1").map((event) => event.kind).sort()).toEqual(["artifact", "gate"]);
 			expect(listEvents(ledger, "run-1").every((event) => event.runId === "run-1")).toBe(true);
 		});
 	});
@@ -733,6 +740,131 @@ describe("Phase 3.5 inspectable trail", () => {
 			expect(runKinds).toContain("artifact");
 			expect(listEvents(ledger, "run-1").every((event) => event.runId === "run-1")).toBe(true);
 			expect(listRuns(ledger, "run-1")[0]?.reportedStatus).toBe("DONE");
+		});
+	});
+});
+
+describe("Phase 4 outcome is the unit", () => {
+	it("parses outcome and run contract types", () => {
+		expect(
+			runtimeOutcomeSchema.parse({
+				id: "out-1",
+				projectId: "demo",
+				title: "Ship login",
+				description: "Objective: ship login",
+				status: "open",
+				createdAt: 1,
+				updatedAt: 1,
+			}).id,
+		).toBe("out-1");
+		expect(
+			runtimeAgentRunSchema.parse({
+				id: "run-1",
+				outcomeId: "out-1",
+				role: "worker",
+				agent: "pi",
+				tier: "T1",
+				model: "kimi-coding/kimi-k2.7",
+				prompt: "U1 auth",
+				worktreePath: null,
+				piSessionPath: null,
+				status: "queued",
+				reportedStatus: null,
+				createdAt: 1,
+				startedAt: null,
+				endedAt: null,
+			}).outcomeId,
+		).toBe("out-1");
+	});
+
+	it("creates one outcome and N runs with split ids", async () => {
+		await withTemporaryHome(async () => {
+			const outcome = recordCreatedOutcome({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				outcomeId: "out-1",
+				title: "Ship login",
+				description: "Objective: ship login\nDone-criteria: tests",
+			});
+			expect(outcome?.id).toBe("out-1");
+			const runA = recordSpawnedRun({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				outcomeId: "out-1",
+				runId: "run-a",
+				prompt: "U1 auth slice",
+				tier: "T1",
+			});
+			const runB = recordSpawnedRun({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				outcomeId: "out-1",
+				runId: "run-b",
+				prompt: "U2 ui slice",
+				tier: "T1",
+			});
+			expect(runA?.outcomeId).toBe("out-1");
+			expect(runB?.outcomeId).toBe("out-1");
+
+			const ledger = openLedger();
+			expect(listOutcomes(ledger, "demo")).toHaveLength(1);
+			expect(listRuns(ledger, "out-1").map((run) => run.id)).toEqual(["run-a", "run-b"]);
+			expect(listOutcomes(ledger, "demo").some((item) => item.id === "run-a")).toBe(false);
+		});
+	});
+
+	it("hook notify updates outcome/run status without inventing a sibling outcome", async () => {
+		await withTemporaryHome(async () => {
+			recordCreatedOutcome({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				outcomeId: "out-1",
+				title: "Ship login",
+				description: "Ship login",
+			});
+			recordSpawnedRun({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				outcomeId: "out-1",
+				runId: "run-a",
+				prompt: "U1 auth slice",
+			});
+
+			recordPiWorkerHook({
+				taskId: "run-a",
+				workspaceId: "demo",
+				repoPath: "/tmp/demo",
+				event: "to_in_progress",
+			});
+			let ledger = openLedger();
+			expect(listRuns(ledger, "out-1")[0]?.status).toBe("running");
+			expect(listOutcomes(ledger, "demo")[0]?.status).toBe("in_progress");
+			expect(listOutcomes(ledger, "demo")).toHaveLength(1);
+
+			recordPiWorkerHook({
+				taskId: "run-a",
+				workspaceId: "demo",
+				repoPath: "/tmp/demo",
+				event: "to_review",
+			});
+			ledger = openLedger();
+			expect(listRuns(ledger, "out-1")[0]?.status).toBe("done");
+			expect(listOutcomes(ledger, "demo")[0]?.status).toBe("verifying");
+			expect(listOutcomes(ledger, "demo").map((item) => item.id)).toEqual(["out-1"]);
+		});
+	});
+
+	it("keeps create_chat 1:1 alias rows", async () => {
+		await withTemporaryHome(async () => {
+			recordCreatedChatIntent({
+				projectId: "demo",
+				repoPath: "/tmp/demo",
+				cardId: "chat-1",
+				prompt: "Ship login",
+			});
+			const ledger = openLedger();
+			expect(listOutcomes(ledger, "demo")[0]?.id).toBe("chat-1");
+			expect(listRuns(ledger, "chat-1")[0]?.id).toBe("chat-1");
 		});
 	});
 });

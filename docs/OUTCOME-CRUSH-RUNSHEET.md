@@ -173,15 +173,15 @@ Broadcast new events so the client can append without polling.
 
 File: `kanban/src/core/api-contract.ts`
 
-Add outcome/run/event types. Stop adding fields to `RuntimeBoardCard` for product features.
+- [x] Add outcome/run/event types. Stop adding fields to `RuntimeBoardCard` for product features.
 
 ### 4.2 Phuong tools
 
 File: `kanban/src/manager/phuong-tools.ts` and `phuong-context.ts`
 
-- `create_outcome` / `spawn_run` (keep `create_chat` as a compatibility alias that creates outcome+run for one release)
-- `list_outcomes` / `list_runs`
-- Prompt contract stays on the **outcome** description; run prompt is the unit slice
+- [x] `create_outcome` / `spawn_run` (keep `create_chat` as a compatibility alias that creates outcome+run for one release)
+- [x] `list_outcomes` / `list_runs`
+- [x] Prompt contract stays on the **outcome** description; run prompt is the unit slice
 
 ### 4.3 Status without columns
 
@@ -189,12 +189,16 @@ Kanban hooks that move cards between columns should instead update `outcomes.sta
 
 File: `kanban/src/terminal/agent-session-adapters.ts`, hook notify path.
 
+- [x] `to_in_progress` / `to_review` write `agent_runs.status` + `outcomes.status`. Run lookup uses `run.outcomeId` (split nouns). Board column moves stay compatibility-only.
+
 ### 4.4 Verify
 
-- Multi-unit Phuong request creates one outcome and N runs.
-- `list_chats` still works via alias or is removed after UI cutover.
+- [x] Multi-unit Phuong request creates one outcome and N runs.
+- [x] `list_chats` still works via alias or is removed after UI cutover.
 
 **Checkpoint:** Domain matches the hierarchy plan. Board JSON is compatibility only.
+
+> **Done (4.1–4.4)** — `RuntimeOutcome` / `RuntimeAgentRun` / event kinds in `api-contract.ts`. `create_outcome` + `spawn_run` + `list_outcomes` / `list_runs`; `create_chat` / `list_chats` stay as one-release aliases. Prompt contract is on the outcome description; run prompt is the unit slice. Hook `to_in_progress` / `to_review` write ledger status via `run.outcomeId` (no sibling outcome). Tests: one outcome + N runs, `list_chats` alias, hook status without columns. No Phase 5 UI.
 
 ---
 

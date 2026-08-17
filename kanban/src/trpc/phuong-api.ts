@@ -7,7 +7,18 @@ import { createTRPCProxyClient, httpBatchLink } from "@trpc/client";
 import type { RuntimeBoardCard, RuntimeBoardData, RuntimeTaskArtifact, RuntimeTaskTier } from "../core/api-contract.js";
 import { buildKanbanRuntimeUrl } from "../core/runtime-endpoint.js";
 import { moveTaskToColumn } from "../core/task-board-mutations.js";
-import { recordArtifactEvent, recordCreatedChatIntent, recordGateEvent } from "../ledger/sync.js";
+import {
+	getOutcome,
+	listOutcomes,
+	listRuns,
+	openLedger,
+	outcomeTitleFromPrompt,
+	recordArtifactEvent,
+	recordCreatedChatIntent,
+	recordCreatedOutcome,
+	recordGateEvent,
+	recordSpawnedRun,
+} from "../ledger/index.js";
 import { getActiveTurn, getAvailableModels, getSessionStats } from "../manager/phuong-session.js";
 import type { BoardOperations } from "../manager/phuong-tools.js";
 import { listSessions, loadSession } from "../manager/session-history.js";
@@ -64,7 +75,7 @@ function isPathInsideWorktree(worktreePath: string, candidatePath: string): bool
 }
 
 export function createBoardOperations(workspacePath: string, onBoardMutated?: () => void): BoardOperations {
-	return {
+	const ops: BoardOperations = {
 		createCard: async (prompt: string, baseRef?: string, options?: { model?: string; tier?: RuntimeTaskTier }) => {
 			const cardId = randomUUID().slice(0, 8);
 			const now = Date.now();
@@ -105,6 +116,100 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 				});
 			} catch {
 				// Board write already succeeded; ledger dual-write is best-effort.
+			}
+		},
+
+		createOutcome: async (description: string, title?: string) => {
+			const workspace = await loadWorkspaceContext(workspacePath);
+			const outcomeId = randomUUID().slice(0, 8);
+			const resolvedTitle = title?.trim() || outcomeTitleFromPrompt(description);
+			const outcome = recordCreatedOutcome({
+				projectId: workspace.workspaceId,
+				repoPath: workspace.repoPath,
+				outcomeId,
+				title: resolvedTitle,
+				description,
+			});
+			if (!outcome) {
+				throw new Error("Could not create outcome in the ledger.");
+			}
+			return { outcomeId: outcome.id, title: outcome.title };
+		},
+
+		spawnRun: async (
+			outcomeId: string,
+			prompt: string,
+			options?: { model?: string; tier?: RuntimeTaskTier },
+		) => {
+			try {
+				const workspace = await loadWorkspaceContext(workspacePath);
+				const existing = getOutcome(openLedger(), outcomeId);
+				if (!existing) {
+					return { ok: false, error: `Outcome "${outcomeId}" was not found.` };
+				}
+				const created = await ops.createCard(prompt, undefined, options);
+				const run = recordSpawnedRun({
+					projectId: workspace.workspaceId,
+					repoPath: workspace.repoPath,
+					outcomeId,
+					runId: created.cardId,
+					prompt,
+					model: options?.model,
+					tier: options?.tier,
+				});
+				if (!run) {
+					return { ok: false, error: `Could not record run under outcome "${outcomeId}".` };
+				}
+				const started = await ops.startTask(created.cardId);
+				if (!started.ok) {
+					return {
+						ok: false,
+						runId: created.cardId,
+						outcomeId,
+						model: options?.model,
+						tier: options?.tier,
+						error: started.error,
+					};
+				}
+				return {
+					ok: true,
+					runId: created.cardId,
+					outcomeId,
+					model: options?.model,
+					tier: options?.tier,
+				};
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				return { ok: false, error: message };
+			}
+		},
+
+		listOutcomes: async () => {
+			try {
+				const workspace = await loadWorkspaceContext(workspacePath);
+				return listOutcomes(openLedger(), workspace.workspaceId).map((outcome) => ({
+					id: outcome.id,
+					title: outcome.title,
+					description: outcome.description,
+					status: outcome.status,
+				}));
+			} catch {
+				return [];
+			}
+		},
+
+		listRuns: async (outcomeId: string) => {
+			try {
+				return listRuns(openLedger(), outcomeId).map((run) => ({
+					id: run.id,
+					outcomeId: run.outcomeId,
+					status: run.status,
+					prompt: run.prompt,
+					model: run.model,
+					tier: run.tier,
+				}));
+			} catch {
+				return [];
 			}
 		},
 
@@ -366,6 +471,7 @@ export function createBoardOperations(workspacePath: string, onBoardMutated?: ()
 			return taskRecord?.task.artifacts ?? [];
 		},
 	};
+	return ops;
 }
 
 export function createPhuongApi() {

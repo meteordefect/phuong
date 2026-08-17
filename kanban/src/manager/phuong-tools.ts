@@ -17,6 +17,26 @@ export interface BoardOperations {
 		baseRef?: string,
 		options?: { model?: string; tier?: RuntimeTaskTier },
 	) => Promise<{ cardId: string; model?: string; tier?: RuntimeTaskTier }>;
+	createOutcome: (
+		description: string,
+		title?: string,
+	) => Promise<{ outcomeId: string; title: string }>;
+	spawnRun: (
+		outcomeId: string,
+		prompt: string,
+		options?: { model?: string; tier?: RuntimeTaskTier },
+	) => Promise<{
+		ok: boolean;
+		runId?: string;
+		outcomeId?: string;
+		model?: string;
+		tier?: RuntimeTaskTier;
+		error?: string;
+	}>;
+	listOutcomes: () => Promise<{ id: string; title: string; description: string; status: string }[]>;
+	listRuns: (outcomeId: string) => Promise<
+		{ id: string; outcomeId: string; status: string; prompt: string; model?: string | null; tier?: string | null }[]
+	>;
 	listCards: () => Promise<
 		{ id: string; prompt: string; column: string; sessionState?: string; model?: string; tier?: string }[]
 	>;
@@ -45,8 +65,8 @@ export interface BoardOperations {
 	}) => Promise<void>;
 }
 
-/** Required sections for every unit prompt passed to create_chat (Phase A contract). */
-export const CREATE_CHAT_PROMPT_CONTRACT = [
+/** Required sections for the outcome description (feature/result contract). */
+export const CREATE_OUTCOME_DESCRIPTION_CONTRACT = [
 	"Objective",
 	"In-scope / out-of-scope",
 	"Done-criteria",
@@ -54,14 +74,168 @@ export const CREATE_CHAT_PROMPT_CONTRACT = [
 	"STATUS marker reminder",
 ] as const;
 
+/** @deprecated Phase 4: contract lives on the outcome. Kept for create_chat alias tests. */
+export const CREATE_CHAT_PROMPT_CONTRACT = CREATE_OUTCOME_DESCRIPTION_CONTRACT;
+
 export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
+	const createOutcomeTool: ToolDefinition = {
+		name: "create_outcome",
+		label: "Create Outcome",
+		description:
+			"Create one feature/result outcome under the current project. Spec only — does not start a worker. " +
+			"For multi-unit work, create the outcome once, announce the routing table, then spawn_run for each unit. " +
+			"Do not use this for pure conversation.",
+		parameters: Type.Object({
+			description: Type.String({
+				description:
+					"Feature/result contract. MUST include all of: " +
+					"(1) Objective — what success looks like; " +
+					"(2) In-scope / out-of-scope — hard boundaries; " +
+					"(3) Done-criteria — preferably runnable commands or grep/file invariants; " +
+					"(4) Files / subsystems to touch; " +
+					"(5) Reminder that each worker must end with STATUS: <DONE|DONE_WITH_CONCERNS|NEEDS_CONTEXT|BLOCKED> and optional REASON:.",
+			}),
+			title: Type.Optional(Type.String({ description: "Short outcome title. Defaults to the first line of description." })),
+		}),
+		execute: async (_toolCallId, params) => {
+			const { description, title } = params as { description: string; title?: string };
+			const result = await boardOps.createOutcome(description, title);
+			return {
+				content: [
+					{
+						type: "text" as const,
+						text: `Outcome created (${result.outcomeId}) "${result.title}". Spawn unit runs with spawn_run.`,
+					},
+				],
+				details: {},
+			};
+		},
+	};
+
+	const spawnRunTool: ToolDefinition = {
+		name: "spawn_run",
+		label: "Spawn Run",
+		description:
+			"Spawn and start one Pi worker run under an existing outcome. The agent begins immediately in its own git worktree. " +
+			"The run prompt is the unit slice, not the full outcome contract. " +
+			"For substantive multi-unit work, announce the routing table before the first spawn_run. " +
+			"Pass tier (T0–T3) or an explicit model. Respect the per-unit retry budget (max 3 dispatches).",
+		parameters: Type.Object({
+			outcome_id: Type.String({ description: "Outcome to attach this run to" }),
+			prompt: Type.String({
+				description:
+					"Unit slice for this Pi run: this unit's objective, files/subsystems, and a STATUS: reminder. " +
+					"Do not repeat the full outcome contract.",
+			}),
+			tier: Type.Optional(
+				Type.Union(
+					[Type.Literal("T0"), Type.Literal("T1"), Type.Literal("T2"), Type.Literal("T3")],
+					{
+						description:
+							"Capability tier for model routing. T0=mechanical/cheap, T1=standard, T2=complex, T3=high-risk. " +
+							"Maps to env PHUONG_MODEL_T0…T3 (defaults: T0/T1 lighter Kimi, T2/T3 Kimi K3).",
+					},
+				),
+			),
+			model: Type.Optional(
+				Type.String({
+					description:
+						"Optional explicit Pi model id (e.g. kimi-coding/kimi-k3 or kimi-coding/kimi-k2.7). Overrides tier mapping when set.",
+				}),
+			),
+		}),
+		execute: async (_toolCallId, params) => {
+			const { outcome_id, prompt, tier, model } = params as {
+				outcome_id: string;
+				prompt: string;
+				tier?: RuntimeTaskTier;
+				model?: string;
+			};
+			const resolvedModel = resolveChatModel({ model, tier });
+			const result = await boardOps.spawnRun(outcome_id, prompt, {
+				model: resolvedModel,
+				tier,
+			});
+			if (!result.ok) {
+				return {
+					content: [
+						{
+							type: "text" as const,
+							text: `Failed to spawn run under outcome ${outcome_id}: ${result.error}`,
+						},
+					],
+					details: {},
+				};
+			}
+			const modelNote = resolvedModel ? ` model=${resolvedModel}` : "";
+			const tierNote = tier ? ` tier=${tier}` : "";
+			return {
+				content: [
+					{
+						type: "text" as const,
+						text: `Run created and started (${result.runId}) under outcome ${result.outcomeId}.${tierNote}${modelNote} The Pi agent is now working on this unit.`,
+					},
+				],
+				details: {},
+			};
+		},
+	};
+
+	const listOutcomesTool: ToolDefinition = {
+		name: "list_outcomes",
+		label: "List Outcomes",
+		description: "List outcomes for the current project with status.",
+		parameters: Type.Object({}),
+		execute: async () => {
+			const outcomes = await boardOps.listOutcomes();
+			if (outcomes.length === 0) {
+				return { content: [{ type: "text" as const, text: "No outcomes yet." }], details: {} };
+			}
+			const lines = outcomes.map((outcome) => {
+				const preview = outcome.description
+					? outcome.description.slice(0, 120) + (outcome.description.length > 120 ? "..." : "")
+					: "(no description)";
+				return `- [${outcome.status}] (${outcome.id}) ${outcome.title} — ${preview}`;
+			});
+			return { content: [{ type: "text" as const, text: lines.join("\n") }], details: {} };
+		},
+	};
+
+	const listRunsTool: ToolDefinition = {
+		name: "list_runs",
+		label: "List Runs",
+		description: "List Pi runs under an outcome with their status.",
+		parameters: Type.Object({
+			outcome_id: Type.String({ description: "Outcome whose runs to list" }),
+		}),
+		execute: async (_toolCallId, params) => {
+			const { outcome_id } = params as { outcome_id: string };
+			const runs = await boardOps.listRuns(outcome_id);
+			if (runs.length === 0) {
+				return {
+					content: [{ type: "text" as const, text: `No runs under outcome ${outcome_id}.` }],
+					details: {},
+				};
+			}
+			const lines = runs.map((run) => {
+				const modelBit = run.model ? ` model=${run.model}` : "";
+				const tierBit = run.tier ? ` tier=${run.tier}` : "";
+				const preview = run.prompt ? run.prompt.slice(0, 120) + (run.prompt.length > 120 ? "..." : "") : "(no prompt)";
+				return `- [${run.status}] (${run.id})${tierBit}${modelBit} ${preview}`;
+			});
+			return { content: [{ type: "text" as const, text: lines.join("\n") }], details: {} };
+		},
+	};
+
 	const createChatTool: ToolDefinition = {
 		name: "create_chat",
 		label: "Create Chat",
 		description:
-			"Create and start a new Pi agent chat for one work unit under the current project. The agent begins immediately in its own git worktree. " +
-			"For substantive multi-unit work, announce the routing table in your reply before calling this tool. " +
-			"One unit ≈ one chat. Do not use this for pure conversation. " +
+			"Compatibility alias: create one outcome and one Pi run for a single-release unit, then start the worker. " +
+			"Prefer create_outcome + spawn_run for multi-unit work. " +
+			"The agent begins immediately in its own git worktree. " +
+			"For substantive multi-unit work, announce the routing table in your reply before dispatching. " +
+			"Do not use this for pure conversation. " +
 			"Pass tier (T0–T3) or an explicit model so light work uses a cheaper model and complex work uses a stronger one. " +
 			"Respect the per-unit retry budget (max 3 dispatches): never silently retry an identical prompt.",
 		parameters: Type.Object({
@@ -138,7 +312,8 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 	const listChatsTool: ToolDefinition = {
 		name: "list_chats",
 		label: "List Chats",
-		description: "List all agent chat sessions for the current project with their status.",
+		description:
+			"Compatibility alias for listing agent chats (board cards / one-release outcome+run pairs). Prefer list_outcomes and list_runs.",
 		parameters: Type.Object({}),
 		execute: async () => {
 			const cards = await boardOps.listCards();
@@ -446,6 +621,10 @@ export function createPhuongTools(boardOps: BoardOperations): ToolDefinition[] {
 	};
 
 	return [
+		createOutcomeTool,
+		spawnRunTool,
+		listOutcomesTool,
+		listRunsTool,
 		createChatTool,
 		listChatsTool,
 		startChatTool,

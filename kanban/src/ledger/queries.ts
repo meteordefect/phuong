@@ -265,6 +265,21 @@ export function getRun(ledger: LedgerDatabase, runId: string): LedgerAgentRunRec
 	return row ? mapRun(row) : null;
 }
 
+export function getRunWithOutcome(
+	ledger: LedgerDatabase,
+	runId: string,
+): { run: LedgerAgentRunRecord; outcome: LedgerOutcomeRecord } | null {
+	const run = getRun(ledger, runId);
+	if (!run) {
+		return null;
+	}
+	const outcome = getOutcome(ledger, run.outcomeId);
+	if (!outcome) {
+		return null;
+	}
+	return { run, outcome };
+}
+
 export function listProjects(ledger: LedgerDatabase): LedgerProjectRecord[] {
 	return ledger.sqlite.prepare("SELECT * FROM projects ORDER BY name COLLATE NOCASE, id").all().map(mapProject);
 }
